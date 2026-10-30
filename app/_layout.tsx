@@ -39,6 +39,8 @@ export default function RootLayout() {
         <Stack.Screen name="search" options={{ headerShown: false }} />
         {/* 统计页同理 */}
         <Stack.Screen name="statistics" options={{ headerShown: false }} />
+        {/* 通知原文调试页 */}
+        <Stack.Screen name="notif-log" options={{ headerShown: false }} />
         {/* 预算设置页自带头部（取消 / 标题 / 保存） */}
         <Stack.Screen name="budget" options={{ headerShown: false, presentation: 'modal' }} />
       </Stack>

@@ -209,7 +209,7 @@ export default function ListScreen() {
       `待补录队列：${state.pendingQueueSize} 条`,
     ];
 
-    const body = `${lines.join('\n')}\n\n如果弹不出气泡，请去系统设置里允许【后台弹出界面】和【自启动】。`;
+    const body = `${lines.join('\n')}\n\n弹不出气泡时，去系统设置把这 5 项都打开（国产 ROM 都要手动放行）：\n1. 显示在其他应用上层（悬浮窗）\n2. 自启动 —— 关掉「自动管理」，改手动，允许自启动\n3. 关联启动 / 允许被其他应用唤醒\n4. 后台运行 / 后台活动\n5. 电池 → 省电策略设为「无限制」`;
 
     Alert.alert('悬浮窗诊断', body, [
       { text: '关闭', style: 'cancel' },
@@ -447,6 +447,12 @@ export default function ListScreen() {
                     (debugState?.isAppInForeground ?? true) ? '否' : '是'
                   } · 点按查看诊断`,
                   onPress: handleOverlayPermission,
+                },
+                {
+                  key: 'notif-log',
+                  label: '最近通知原文（调试）',
+                  hint: '看抓到过哪些通知，判断是没发还是没识别',
+                  onPress: () => router.push('/notif-log'),
                 },
                 {
                   key: 'notification',

@@ -63,6 +63,21 @@ export interface OverlayDebugState {
   listenerConnected: boolean;
 }
 
+/** 原生持久化的通知日志条目（最近 50 条，含未命中） */
+export interface NotificationLogEntry {
+  timestamp: number;
+  packageName: string;
+  title: string;
+  text: string;
+  bigText: string;
+  subText: string;
+  tickerText: string;
+  extrasDump: string;
+  isMatch: boolean;
+  amountFen: number | null;
+  matchedKeyword: string;
+}
+
 /**
  * 只声明主项目真正用到的成员。
  * 不继承 `NativeModule` 是因为它在 expo 的类型里是「构造函数类型」，interface 继承拿不到实例方法。
@@ -87,6 +102,8 @@ interface NotificationListenerNative {
   setAppInForeground(foreground: boolean): boolean;
   getPendingAutoRecords(): Promise<PendingAutoRecord[]>;
   clearPendingAutoRecords(): Promise<void>;
+  getLogs(): Promise<NotificationLogEntry[]>;
+  clearLogs(): Promise<void>;
 }
 
 let cached: NotificationListenerNative | null | undefined;
@@ -191,6 +208,24 @@ export function getOverlayDebugState(): OverlayDebugState | null {
     return parsed as OverlayDebugState;
   } catch {
     return null;
+  }
+}
+
+/** 读取最近 50 条通知原文（含未命中），用于排查「为什么没反应」 */
+export async function getNotificationLogs(): Promise<NotificationLogEntry[]> {
+  try {
+    return (await getNotificationListener()?.getLogs()) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** 清空通知日志 */
+export async function clearNotificationLogs(): Promise<void> {
+  try {
+    await getNotificationListener()?.clearLogs();
+  } catch {
+    // 忽略
   }
 }
 
