@@ -76,19 +76,70 @@ jobs:
           sed -i 's/^org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g/' android/gradle.properties
           grep -q '^org.gradle.workers.max' android/gradle.properties \
             || echo 'org.gradle.workers.max=2' >> android/gradle.properties
+          grep -q '^org.gradle.parallel' android/gradle.properties \
+            || echo 'org.gradle.parallel=false' >> android/gradle.properties
+
+      # GitHub 免费 runner 只有 7G 内存没有 swap，新架构的 CMake/C++ 编译容易被 OOM Kill
+      - name: Increase swap
+        run: |
+          sudo swapoff -a || true
+          sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
 
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses > /dev/null 2>&1 || true
 
+      # 诊断：打印属性真实值 + 单独跑一次那条 node 命令（失败也继续，只为拿完整堆栈）
+      - name: Preflight inline modules
+        continue-on-error: true
+        run: |
+          echo "=== android/gradle.properties 中的 inlineModules 属性 ==="
+          grep -n "inlineModules" android/gradle.properties || echo "(没有该属性)"
+          echo ""
+          echo "=== 单独执行 generateInlineModules 的 node 命令 ==="
+          ROOT="$PWD"
+          cd android
+          node --no-warnings --eval "require('expo/bin/autolinking')" expo-modules-autolinking mirror-kotlin-inline-modules \
+            --kotlin-files-mirror-directory "$ROOT/node_modules/expo/android/src/main/java/inline/modules" \
+            --inline-modules-list-directory "$ROOT/node_modules/expo/android/build/inline/modules" \
+            --watched-directories-serialized "[]" \
+            || echo "^^^ 上面就是这条命令的真实报错"
+
       - name: Build release APK
         if: ${{ (github.event.inputs.variant || 'release') == 'release' }}
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=2
+        run: ./gradlew assembleRelease --no-daemon --console=plain --stacktrace --max-workers=2 -Pexpo.inlineModules.watchedDirectories='[]'
 
       - name: Build debug APK (dev client)
         if: ${{ github.event.inputs.variant == 'debug' }}
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace --max-workers=2
+        run: ./gradlew assembleDebug --no-daemon --console=plain --stacktrace --max-workers=2 -Pexpo.inlineModules.watchedDirectories='[]'
+
+      # 失败时把 Gradle 报告一起传上去，方便直接发给开发者定位
+      - name: Upload build reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-reports
+          path: |
+            android/app/build/reports/**
+            android/build/reports/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # 失败时单独重跑那个任务，把 node 的真实报错抓出来（Gradle 平时只显示退出码）
+      - name: Diagnose generateInlineModules
+        if: failure()
+        continue-on-error: true
+        working-directory: android
+        run: |
+          echo "=== :expo:generateInlineModules 详细日志 ==="
+          ./gradlew :expo:generateInlineModules --console=plain --info 2>&1 \
+            | grep -E "expo-modules-autolinking failed|Error:|error:|TypeError|ENOENT|EACCES|Command failed|at .*inlineModules" \
+            | head -40 || true
 
       - name: Collect APK
         run: |
