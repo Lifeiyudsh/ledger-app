@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!--
+    本地模块的 manifest 会在 Gradle 构建时自动 merge 进主工程的 AndroidManifest.xml，
+    所以这里注册 Service 就够了，不需要额外写 config plugin。
+
+    注意：<service> 必须嵌在 <application> 内部，直接挂在 <manifest> 下会触发
+    AAPT "unexpected element <service> found in <manifest>"。
+
+    BIND_NOTIFICATION_LISTENER_SERVICE 是「签名级」权限，无法用 requestPermissions 动态申请，
+    只能由用户在「设置 → 通知使用权」里手动授权；因此它以 android:permission 的形式声明在
+    service 上，而不是写成 uses-permission。
+  -->
+
+  <!-- 悬浮窗（显示在其他应用上层）。属于「特殊权限」，声明后仍需用户去系统设置里手动打开 -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+  <application>
+    <service
+      android:name="expo.modules.notificationlistener.TransactionNotificationService"
+      android:label="通知监听"
+      android:exported="true"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+  </application>
+
+</manifest>
