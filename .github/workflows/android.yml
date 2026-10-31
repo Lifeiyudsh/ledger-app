@@ -78,6 +78,8 @@ jobs:
             || echo 'org.gradle.workers.max=2' >> android/gradle.properties
           grep -q '^org.gradle.parallel' android/gradle.properties \
             || echo 'org.gradle.parallel=false' >> android/gradle.properties
+          echo "--- inlineModules 属性原始值 ---"
+          grep -n "inlineModules" android/gradle.properties || echo "(没有该属性)"
 
       # GitHub 免费 runner 只有 7G 内存没有 swap，新架构的 CMake/C++ 编译容易被 OOM Kill
       - name: Increase swap
@@ -95,12 +97,12 @@ jobs:
       - name: Build release APK
         if: ${{ (github.event.inputs.variant || 'release') == 'release' }}
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --console=plain --stacktrace --max-workers=2
+        run: ./gradlew assembleRelease --no-daemon --console=plain --stacktrace --max-workers=2 -Pexpo.inlineModules.watchedDirectories='[]'
 
       - name: Build debug APK
         if: ${{ github.event.inputs.variant == 'debug' }}
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --console=plain --stacktrace --max-workers=2
+        run: ./gradlew assembleDebug --no-daemon --console=plain --stacktrace --max-workers=2 -Pexpo.inlineModules.watchedDirectories='[]'
 
       # 失败时把 Gradle 报告一起传上去，方便直接发给开发者定位
       - name: Upload build reports on failure
