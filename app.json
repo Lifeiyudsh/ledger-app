@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "记账工具",
+    "slug": "ledger-app",
+    "scheme": "ledger",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.junwang.ledger"
+    },
+    "android": {
+      "package": "com.junwang.ledger",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./icon.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-sharing",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "4f2ec8e5-0004-4700-be60-dcc74876942a"
+      }
+    },
+    "owner": "hahamj"
+  }
+}
