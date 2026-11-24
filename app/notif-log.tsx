@@ -15,7 +15,12 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatYuan } from '../src/lib/money';
 import {
   clearNotificationLogs,
+  getNotificationListener,
   getNotificationLogs,
+  isAccessibilityEnabled,
+  isNotificationPermissionGranted,
+  openAccessibilitySettings,
+  openNotificationListenerSettings,
   type NotificationLogEntry,
 } from '../src/lib/notificationBridge';
 import { colors, radius, spacing } from '../src/theme';
@@ -27,8 +32,13 @@ export default function NotificationLogScreen() {
 
   const [logs, setLogs] = useState<NotificationLogEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [listenerOk, setListenerOk] = useState(false);
+  const [a11yOk, setA11yOk] = useState(false);
+  const hasModule = getNotificationListener() !== null;
 
   const load = useCallback(async () => {
+    setListenerOk(isNotificationPermissionGranted());
+    setA11yOk(isAccessibilityEnabled());
     setLogs(await getNotificationLogs());
   }, []);
 
@@ -104,15 +114,72 @@ export default function NotificationLogScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.sub} />
         }
         ListHeaderComponent={
-          <Text style={styles.tip}>
-            最近 {logs.length} 条（含未命中）。点卡片可复制原文；没看到转账/收款说明微信压根没发通知。
-          </Text>
+          <View style={styles.head}>
+            <View style={styles.chips}>
+              <Pressable
+                onPress={() => openNotificationListenerSettings()}
+                disabled={!hasModule}
+                style={[styles.chip, listenerOk ? styles.chipOn : styles.chipOff]}
+              >
+                <Text style={[styles.chipText, listenerOk && styles.chipTextOn]}>
+                  通知监听 {listenerOk ? '已开启' : '未开启'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => openAccessibilitySettings()}
+                disabled={!hasModule}
+                style={[styles.chip, a11yOk ? styles.chipOn : styles.chipOff]}
+              >
+                <Text style={[styles.chipText, a11yOk && styles.chipTextOn]}>
+                  读屏 {a11yOk ? '已开启' : '未开启'}
+                </Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.tip}>
+              最近 {logs.length} 条（含未命中）。点卡片可复制原文。
+            </Text>
+          </View>
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="notifications-off-outline" size={32} color={colors.border} />
-            <Text style={styles.emptyTitle}>还没有捕获到通知</Text>
-            <Text style={styles.emptyHint}>去付一笔款，再回来看</Text>
+            <Ionicons
+              name={listenerOk || a11yOk ? 'notifications-off-outline' : 'alert-circle-outline'}
+              size={32}
+              color={colors.border}
+            />
+            <Text style={styles.emptyTitle}>
+              {!hasModule
+                ? '当前构建不含自动记账模块'
+                : listenerOk || a11yOk
+                  ? '服务已开启，但还没抓到记录'
+                  : '两个开关都没打开'}
+            </Text>
+            <Text style={styles.emptyHint}>
+              {!hasModule
+                ? '需要用 APK 版本，Expo Go 不支持'
+                : listenerOk || a11yOk
+                  ? '去付一笔款，停在支付结果页 2 秒，再回来看'
+                  : '没开开关就抓不到任何东西。重装 App 后系统会重置这两个权限，需要重新打开'}
+            </Text>
+
+            {hasModule && !listenerOk && !a11yOk ? (
+              <View style={styles.emptyActions}>
+                <Pressable
+                  onPress={() => openNotificationListenerSettings()}
+                  style={({ pressed }) => [styles.emptyBtn, pressed && styles.emptyBtnPressed]}
+                >
+                  <Text style={styles.emptyBtnText}>去开通知监听</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => openAccessibilitySettings()}
+                  style={({ pressed }) => [styles.emptyBtn, pressed && styles.emptyBtnPressed]}
+                >
+                  <Text style={styles.emptyBtnText}>去开读屏</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         }
         renderItem={({ item }) => (
@@ -182,7 +249,24 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
   clear: { fontSize: 14, color: colors.sub, paddingHorizontal: spacing.sm },
   list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
-  tip: { fontSize: 12, color: colors.sub, lineHeight: 18, marginBottom: spacing.sm },
+  head: { gap: spacing.sm, marginBottom: spacing.sm },
+  chips: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
+  chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill },
+  chipOn: { backgroundColor: colors.primarySoft },
+  chipOff: { backgroundColor: colors.inputBg },
+  chipText: { fontSize: 11, fontWeight: '600', color: colors.sub },
+  chipTextOn: { color: colors.primary },
+  tip: { fontSize: 12, color: colors.sub, lineHeight: 18 },
+  emptyActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  emptyBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  emptyBtnPressed: { opacity: 0.7 },
+  emptyBtnText: { fontSize: 13, fontWeight: '600', color: colors.primary },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.md,

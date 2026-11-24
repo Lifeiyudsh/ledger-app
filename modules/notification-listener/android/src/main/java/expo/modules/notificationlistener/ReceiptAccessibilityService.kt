@@ -174,7 +174,7 @@ class ReceiptAccessibilityService : AccessibilityService() {
         direction = result.direction,
         keyword = result.matchedKeyword,
         combined = combined,
-        title = "",
+        title = findMerchantLine(combined),
         packageName = packageName,
         appName = appName,
         postedAt = now,
@@ -183,6 +183,25 @@ class ReceiptAccessibilityService : AccessibilityService() {
     } catch (t: Throwable) {
       Log.w(TAG, "扫描页面失败", t)
     }
+  }
+
+  /**
+   * 从页面文本里挑商户名。
+   * 支付宝结果页长这样：支付成功 / 淘宝平台商户 / ¥8.79 / 返回商家 —— 没有「收款方：」这类标签，
+   * 只能靠「以商户/商家/店铺结尾的短行」来认。
+   */
+  private fun findMerchantLine(text: String): String {
+    val lines = text.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+
+    val labeled = Regex("""(?:收款方|收款商家|商户全称|商户名称|商户)\s*[:：]\s*(.+)""")
+    lines.firstNotNullOfOrNull { line ->
+      labeled.find(line)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotEmpty() }
+    }?.let { return it }
+
+    return lines.firstOrNull { line ->
+      line.length in 2..24 &&
+        (line.endsWith("商户") || line.endsWith("商家") || line.endsWith("店铺") || line.endsWith("旗舰店"))
+    }.orEmpty()
   }
 
   /**
