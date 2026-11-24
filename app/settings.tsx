@@ -10,6 +10,8 @@ import {
   getOverlayDebugState,
   ensureSmsPermission,
   hasSmsPermission,
+  isAutoBookkeeping,
+  setAutoBookkeeping,
   isAccessibilityEnabled,
   isNotificationPermissionGranted,
   openAccessibilitySettings,
@@ -43,6 +45,7 @@ export default function SettingsScreen() {
   const [a11yEnabled, setA11yEnabled] = useState(false);
   const [smsGranted, setSmsGranted] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
+  const [autoBook, setAutoBook] = useState(false);
 
   const refresh = useCallback(() => {
     setMonthCount(listTransactionsByMonth(month, { limit: 1000 }).length);
@@ -52,6 +55,7 @@ export default function SettingsScreen() {
     setA11yEnabled(isAccessibilityEnabled());
     setSmsGranted(hasSmsPermission());
     setImportedCount(countImportedBills());
+    setAutoBook(isAutoBookkeeping());
   }, [month]);
 
   useFocusEffect(
@@ -262,12 +266,34 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>自动记账</Text>
         <View style={[styles.card, cardShadow]}>
           <Row
+            icon="flash-outline"
+            title="自动记账（免确认）"
+            subtitle={
+              autoBook
+                ? '已开启 · 抓到就直接入账，不用点任何东西'
+                : '未开启 · 抓到后弹气泡/横幅，点一下才入账'
+            }
+            onPress={() => {
+              const next = !autoBook;
+              if (setAutoBookkeeping(next)) {
+                setAutoBook(next);
+                Alert.alert(
+                  next ? '已开启自动记账' : '已关闭自动记账',
+                  next
+                    ? '之后抓到的消费会直接记进账本，分类靠关键词猜，记错了在列表里改。'
+                    : '之后抓到的消费会先弹提示，你点一下才入账。',
+                );
+              }
+            }}
+            disabled={!hasModule}
+            first
+          />
+          <Row
             icon="notifications-outline"
             title="通知使用权"
             subtitle={listenerGranted ? '已授权' : '未授权 · 点此去系统设置开启'}
             onPress={() => openNotificationListenerSettings()}
             disabled={!hasModule}
-            first
           />
           <Row
             icon="scan-outline"

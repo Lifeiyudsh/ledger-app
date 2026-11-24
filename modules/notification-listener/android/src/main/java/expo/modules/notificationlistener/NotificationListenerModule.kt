@@ -84,6 +84,23 @@ class NotificationListenerModule : Module() {
 
     // ---------- 读屏（无障碍） ----------
 
+    // ---------- 自动记账（免确认） ----------
+
+    Function("isAutoBookkeeping") {
+      val context = appContext.reactContext
+      if (context == null) false else AutoBookkeepingConfig.isEnabled(context)
+    }
+
+    Function("setAutoBookkeeping") { enabled: Boolean ->
+      val context = appContext.reactContext
+      if (context == null) {
+        false
+      } else {
+        AutoBookkeepingConfig.setEnabled(context, enabled)
+        true
+      }
+    }
+
     /** 是否已授予短信权限（RECEIVE_SMS 运行时权限） */
     Function("hasSmsPermission") {
       val context = appContext.reactContext

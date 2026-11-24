@@ -100,6 +100,8 @@ interface NotificationListenerNative {
   isAccessibilityEnabled(): boolean;
   openAccessibilitySettings(): boolean;
   hasSmsPermission(): boolean;
+  isAutoBookkeeping(): boolean;
+  setAutoBookkeeping(enabled: boolean): boolean;
   /** 原生返回 JSON 字符串，由 JS 自己 parse（避免依赖 expo 的字典转换） */
   getDebugState(): string;
   setAppInForeground(foreground: boolean): boolean;
@@ -204,6 +206,26 @@ export function subscribeOverlayConfirmed(
 export function refreshListenerBinding(): boolean {
   try {
     return getNotificationListener()?.refreshBinding() ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 自动记账（免确认）：捕获即写队列、JS 一有机会就入库，不用点气泡或横幅。
+ * 关掉时走「气泡/横幅 → 点一下才入库」的老流程。
+ */
+export function isAutoBookkeeping(): boolean {
+  try {
+    return getNotificationListener()?.isAutoBookkeeping() ?? false;
+  } catch {
+    return false;
+  }
+}
+
+export function setAutoBookkeeping(enabled: boolean): boolean {
+  try {
+    return getNotificationListener()?.setAutoBookkeeping(enabled) ?? false;
   } catch {
     return false;
   }
