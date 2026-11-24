@@ -8,6 +8,8 @@ import {
   canDrawOverlays,
   getNotificationListener,
   getOverlayDebugState,
+  ensureSmsPermission,
+  hasSmsPermission,
   isAccessibilityEnabled,
   isNotificationPermissionGranted,
   openAccessibilitySettings,
@@ -38,6 +40,7 @@ export default function SettingsScreen() {
   const [overlayGranted, setOverlayGranted] = useState(false);
   const [listenerGranted, setListenerGranted] = useState(false);
   const [a11yEnabled, setA11yEnabled] = useState(false);
+  const [smsGranted, setSmsGranted] = useState(false);
 
   const refresh = useCallback(() => {
     setMonthCount(listTransactionsByMonth(month, { limit: 1000 }).length);
@@ -45,6 +48,7 @@ export default function SettingsScreen() {
     setOverlayGranted(canDrawOverlays());
     setListenerGranted(isNotificationPermissionGranted());
     setA11yEnabled(isAccessibilityEnabled());
+    setSmsGranted(hasSmsPermission());
   }, [month]);
 
   useFocusEffect(
@@ -260,6 +264,31 @@ export default function SettingsScreen() {
               } else {
                 Alert.alert('读屏已开启', '如需关闭，请到系统「无障碍」里关掉「记账工具」。');
               }
+            }}
+            disabled={!hasModule}
+          />
+          <Row
+            icon="mail-unread-outline"
+            title="短信自动记账"
+            subtitle={smsGranted ? '已授权 · 银行动账短信会自动识别' : '未授权 · 信用卡/储蓄卡消费靠它'}
+            onPress={() => {
+              void (async () => {
+                if (smsGranted) {
+                  Alert.alert(
+                    '短信自动记账已开启',
+                    '收到银行动账短信时会自动识别金额。如需关闭，请到系统「设置 → 应用 → 记账工具 → 权限」里关掉短信。',
+                  );
+                  return;
+                }
+
+                const granted = await ensureSmsPermission();
+                setSmsGranted(granted);
+                if (granted) {
+                  Alert.alert('已开启', '之后收到银行动账短信会自动记账，金额相同的一笔不会被微信通知重复记。');
+                } else {
+                  Alert.alert('没有授权', '短信权限被拒绝了。可以再到系统「设置 → 应用 → 记账工具 → 权限」里手动打开。');
+                }
+              })();
             }}
             disabled={!hasModule}
           />

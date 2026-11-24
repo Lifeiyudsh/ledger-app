@@ -1,6 +1,6 @@
 import { requireNativeModule } from 'expo';
 import { useEffect } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import { pushCapture, type NotificationTransactionPayload } from './pendingCapture';
 
 /**
@@ -99,6 +99,7 @@ interface NotificationListenerNative {
   requestOverlayPermission(): boolean;
   isAccessibilityEnabled(): boolean;
   openAccessibilitySettings(): boolean;
+  hasSmsPermission(): boolean;
   /** 原生返回 JSON 字符串，由 JS 自己 parse（避免依赖 expo 的字典转换） */
   getDebugState(): string;
   setAppInForeground(foreground: boolean): boolean;
@@ -193,6 +194,31 @@ export function subscribeOverlayConfirmed(
     return () => subscription.remove();
   } catch {
     return () => {};
+  }
+}
+
+/** 是否已授予短信权限（银行动账短信自动记账） */
+export function hasSmsPermission(): boolean {
+  try {
+    return getNotificationListener()?.hasSmsPermission() ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** 申请短信权限；用户拒绝返回 false */
+export async function ensureSmsPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  if (hasSmsPermission()) return true;
+
+  try {
+    const result = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+      PermissionsAndroid.PERMISSIONS.READ_SMS,
+    ]);
+    return result[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] === PermissionsAndroid.RESULTS.GRANTED;
+  } catch {
+    return false;
   }
 }
 

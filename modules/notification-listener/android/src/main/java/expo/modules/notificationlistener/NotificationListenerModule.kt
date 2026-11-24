@@ -1,11 +1,13 @@
 package expo.modules.notificationlistener
 
+import android.Manifest
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.app.Application
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -81,6 +83,22 @@ class NotificationListenerModule : Module() {
     }
 
     // ---------- 读屏（无障碍） ----------
+
+    /** 是否已授予短信权限（RECEIVE_SMS 运行时权限） */
+    Function("hasSmsPermission") {
+      val context = appContext.reactContext
+      if (context == null) {
+        false
+      } else {
+        try {
+          context.checkSelfPermission(Manifest.permission.RECEIVE_SMS) ==
+            PackageManager.PERMISSION_GRANTED
+        } catch (t: Throwable) {
+          Log.w(TAG, "检查短信权限失败", t)
+          false
+        }
+      }
+    }
 
     /** 读屏服务是否已开启（用户在系统「无障碍」里手动授权） */
     Function("isAccessibilityEnabled") {
