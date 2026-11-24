@@ -5,7 +5,6 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  canDrawOverlays,
   getNotificationListener,
   getOverlayDebugState,
   ensureSmsPermission,
@@ -16,7 +15,6 @@ import {
   isNotificationPermissionGranted,
   openAccessibilitySettings,
   openNotificationListenerSettings,
-  requestOverlayPermission,
 } from '../src/lib/notificationBridge';
 import {
   copyBackupToClipboard,
@@ -40,7 +38,6 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState<'export' | 'backup' | 'restore' | null>(null);
   const [monthCount, setMonthCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  const [overlayGranted, setOverlayGranted] = useState(false);
   const [listenerGranted, setListenerGranted] = useState(false);
   const [a11yEnabled, setA11yEnabled] = useState(false);
   const [smsGranted, setSmsGranted] = useState(false);
@@ -50,7 +47,6 @@ export default function SettingsScreen() {
   const refresh = useCallback(() => {
     setMonthCount(listTransactionsByMonth(month, { limit: 1000 }).length);
     setTotalCount(countAllTransactions());
-    setOverlayGranted(canDrawOverlays());
     setListenerGranted(isNotificationPermissionGranted());
     setA11yEnabled(isAccessibilityEnabled());
     setSmsGranted(hasSmsPermission());
@@ -135,8 +131,8 @@ export default function SettingsScreen() {
     }
   }, [busy, runRestore]);
 
-  /** 悬浮窗诊断（含 5 项 ROM 设置清单 + 复制诊断） */
-  const handleOverlayDiagnostics = useCallback(() => {
+  /** 自动记账诊断：只保留还能定位问题的字段 */
+  const handleDiagnostics = useCallback(() => {
     const state = getOverlayDebugState();
     if (!state) {
       Alert.alert('自动记账不可用', '当前构建里没有通知监听模块（Expo Go 不支持），请用 APK。', [
@@ -145,39 +141,29 @@ export default function SettingsScreen() {
       return;
     }
 
-    const yesNo = (value: boolean | null) =>
-      value === null || value === undefined ? '未知' : value ? '是' : '否';
-
     const lines = [
-      `悬浮窗权限：${state.canDrawOverlays ? '有' : '没有'}`,
-      `原生认为 App 在前台：${state.isAppInForeground ? '是' : '否'}`,
       `通知监听服务：${state.listenerConnected ? '已连接' : '未连接'}`,
+      `读屏：${isAccessibilityEnabled() ? '已开启' : '未开启'}`,
+      `免确认自动记账：${isAutoBookkeeping() ? '已开启' : '未开启'}`,
       '',
       `上次判定：${state.lastDecision}`,
       `判定依据：${state.lastForegroundSource}`,
-      `标志位 / importance：${yesNo(state.lastForegroundFlag)} / ${state.lastImportance}`,
-      `importance 来源：${state.lastImportanceSource}`,
-      `上次 addView：${state.lastAddViewOk === null ? '未尝试' : state.lastAddViewOk ? '成功' : '失败'}`,
       `错误信息：${state.lastError ?? '无'}`,
-      `气泡 尝试/成功：${state.showAttempts} / ${state.showSuccesses}`,
-      `待补录队列：${state.pendingQueueSize} 条`,
+      `待入库队列：${state.pendingQueueSize} 条`,
     ];
 
-    const body = `${lines.join('\n')}\n\n弹不出气泡时，去系统设置把这 5 项都打开（国产 ROM 都要手动放行）：\n1. 显示在其他应用上层（悬浮窗）\n2. 自启动 —— 关掉「自动管理」改手动，允许自启动\n3. 关联启动 / 允许被其他应用唤醒\n4. 后台运行 / 后台活动\n5. 电池 → 省电策略设为「无限制」`;
-
-    Alert.alert('自动记账诊断', body, [
+    Alert.alert('自动记账诊断', lines.join('\n'), [
       { text: '关闭', style: 'cancel' },
       {
-        text: '复制诊断',
+        text: '复制',
         onPress: () => {
           void import('expo-clipboard').then((Clipboard) =>
             Clipboard.setStringAsync(
-              `【自动记账诊断】\n${lines.join('\n')}\n\n最近通知原文：\n${state.lastNotificationText || '（还没有抓到过通知）'}`,
+              `【自动记账诊断】\n${lines.join('\n')}\n\n最近通知原文：\n${state.lastNotificationText || '（无）'}`,
             ),
           );
         },
       },
-      { text: state.canDrawOverlays ? '重新授权' : '去授权', onPress: () => requestOverlayPermission() },
     ]);
   }, []);
 
@@ -345,10 +331,10 @@ export default function SettingsScreen() {
             disabled={!hasModule}
           />
           <Row
-            icon="chatbubble-ellipses-outline"
-            title="悬浮窗快捷记账"
-            subtitle={overlayGranted ? '已开启 · 抓到消费会弹气泡' : '未开启 · 目前走应用内横幅'}
-            onPress={handleOverlayDiagnostics}
+            icon="pulse-outline"
+            title="自检与诊断"
+            subtitle="看服务是否真的在工作，可复制结果"
+            onPress={handleDiagnostics}
             disabled={!hasModule}
           />
           <Row

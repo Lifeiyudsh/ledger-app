@@ -38,50 +38,17 @@ internal object CaptureDispatcher {
       return
     }
 
+    // 没了悬浮窗之后只剩一条路：发事件给 JS，由应用内横幅做「待确认」。
+    // 「免确认」开关打开时走上面的队列分支，这里根本不会执行到。
     val check = ForegroundTracker.check(context)
-    val canDraw = OverlayBubbleManager.isPermissionGranted(context)
+    Log.d(TAG, "[$source] 命中 amount=${amountFen}fen 前台=${check.foreground}")
 
-    Log.d(
-      TAG,
-      "[$source] 命中 amount=${amountFen}fen dir=$direction foreground=${check.foreground} " +
-        "flag=${check.flag} importance=${check.importance}(${check.importanceSource}) canDrawOverlays=$canDraw"
+    OverlayDebugState.recordDecision(
+      if (check.foreground) "走应用内横幅（前台，$source）" else "走应用内横幅（后台无气泡模式，$source）",
+      check,
+      null,
+      combined
     )
-
-    if (!check.foreground && canDraw) {
-      OverlayDebugState.recordDecision("走气泡（$source）", check, canDraw, combined)
-
-      OverlayBubbleManager.show(
-        context,
-        OverlayBubbleManager.OverlayItem(
-          id = "$postedAt-$amountFen",
-          amountFen = amountFen,
-          direction = direction,
-          note = MerchantExtractor.extract(combined, title),
-          rawText = combined,
-          appName = appName,
-          packageName = packageName,
-          postedAt = postedAt
-        ),
-        onFallback = {
-          OverlayDebugState.recordDecision(
-            "气泡失败，降级横幅：${OverlayDebugState.lastError ?: "未知原因"}",
-            check,
-            canDraw,
-            combined
-          )
-          emit(amountFen, direction, keyword, combined, title, packageName, appName, postedAt, source)
-        }
-      )
-      return
-    }
-
-    val reason = if (check.foreground) {
-      "判定为前台，走应用内横幅（$source）"
-    } else {
-      "无悬浮窗权限，走应用内横幅（$source）"
-    }
-    Log.d(TAG, reason)
-    OverlayDebugState.recordDecision(reason, check, canDraw, combined)
 
     emit(amountFen, direction, keyword, combined, title, packageName, appName, postedAt, source)
   }

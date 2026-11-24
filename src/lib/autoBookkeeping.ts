@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform, ToastAndroid } from 'react-native';
+import { getCategoryLabel } from '../constants/categories';
 import { guessCategory } from './categoryGuess';
 import { createTransaction } from '../db/transactions';
 import { toISODate } from './date';
@@ -12,10 +13,11 @@ import {
 } from './notificationBridge';
 
 /**
- * 悬浮窗气泡确认后的「自动记账」。
+ * 自动记账的入库侧。
  *
- * 数据链路：气泡点击 → 原生写 SharedPreferences 队列 → 这里 drain 入库 → 清空队列。
- * 即使点击时 JS runtime 已经死了，下次启动 App 也会把队列补齐（不丢数据）。
+ * 数据链路：原生捕获（通知/读屏/短信）→ 写 SharedPreferences 队列 → 这里 drain 入库 → 清空队列 → toast 提示。
+ * 即使捕获时 JS runtime 已经死了，下次启动 App 也会把队列补齐（不丢数据）。
+ * 「免确认」开关打开时链路完全一样，只是无需用户点气泡/横幅。
  */
 
 const listeners = new Set<() => void>();
@@ -39,7 +41,12 @@ function notifyDone() {
 }
 
 /** 单条入库：备注强制带「自动」前缀，方便日后筛出来核对/撤销 */
-function insertRecord(record: Partial<PendingAutoRecord>): void {
+interface InsertedInfo {
+  amountCents: number;
+  categoryLabel: string;
+}
+
+function insertRecord(record: Partial<PendingAutoRecord>): InsertedInfo {
   const amountCents = Math.trunc(Number(record.amountFen ?? 0));
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
     throw new Error(`金额非法：${record.amountFen}`);
@@ -58,6 +65,25 @@ function insertRecord(record: Partial<PendingAutoRecord>): void {
     note: `自动 · ${merchant}`.slice(0, 100),
     date: toISODate(new Date(timestamp)),
   });
+
+  return { amountCents, categoryLabel: getCategoryLabel(category) };
+}
+
+/** 入库后的即时反馈：系统级 toast，App 在后台也能看见 */
+function showBookkeepingToast(inserted: readonly InsertedInfo[]): void {
+  if (Platform.OS !== 'android' || inserted.length === 0) return;
+
+  try {
+    if (inserted.length === 1) {
+      const only = inserted[0];
+      const yuan = (only.amountCents / 100).toFixed(2);
+      ToastAndroid.show(`已记账 ¥${yuan} · ${only.categoryLabel}`, ToastAndroid.SHORT);
+    } else {
+      ToastAndroid.show(`已自动记账 ${inserted.length} 笔`, ToastAndroid.SHORT);
+    }
+  } catch {
+    // toast 失败不影响入库
+  }
 }
 
 let draining = false;
@@ -74,16 +100,18 @@ export async function drainPendingAutoRecords(): Promise<{ inserted: number; fai
     const records = await getPendingAutoRecords();
     if (records.length === 0) return { inserted: 0, failed: false };
 
-    let inserted = 0;
+    const insertedItems: InsertedInfo[] = [];
     for (const record of records) {
-      insertRecord(record);
-      inserted += 1;
+      insertedItems.push(insertRecord(record));
     }
 
     await clearPendingAutoRecords();
-    if (inserted > 0) notifyDone();
+    if (insertedItems.length > 0) {
+      notifyDone();
+      showBookkeepingToast(insertedItems);
+    }
 
-    return { inserted, failed: false };
+    return { inserted: insertedItems.length, failed: false };
   } catch (error) {
     console.warn('[auto-bookkeeping] 补录失败，队列保留待下次重试', error);
     return { inserted: 0, failed: true };

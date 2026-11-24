@@ -14,7 +14,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatYuan } from '../src/lib/money';
 import {
-  canDrawOverlays,
   clearNotificationLogs,
   getNotificationListener,
   getNotificationLogs,
@@ -39,7 +38,6 @@ export default function NotificationLogScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [listenerOk, setListenerOk] = useState(false);
   const [a11yOk, setA11yOk] = useState(false);
-  const [overlayOk, setOverlayOk] = useState(false);
   const [smsOk, setSmsOk] = useState(false);
   const [debug, setDebug] = useState<OverlayDebugState | null>(null);
   const [fixing, setFixing] = useState(false);
@@ -49,7 +47,6 @@ export default function NotificationLogScreen() {
   const load = useCallback(async () => {
     setListenerOk(isNotificationPermissionGranted());
     setA11yOk(isAccessibilityEnabled());
-    setOverlayOk(canDrawOverlays());
     setSmsOk(hasSmsPermission());
     setDebug(getOverlayDebugState());
     setLogs(await getNotificationLogs());
@@ -183,7 +180,6 @@ export default function NotificationLogScreen() {
                       `通知使用权：${listenerOk ? '有' : '没有'}`,
                       `监听服务：${debug?.listenerConnected ? '已连接' : '未连接'}`,
                       `读屏：${a11yOk ? '已开启' : '未开启'}`,
-                      `悬浮窗：${overlayOk ? '有' : '没有'}`,
                       `短信：${smsOk ? '有' : '没有'}`,
                       `日志条数：${logs.length}`,
                       `上次判定：${debug?.lastDecision ?? '-'}`,
@@ -208,7 +204,6 @@ export default function NotificationLogScreen() {
                 ) : null}
               </CheckRow>
               <CheckRow label="读屏（无障碍）" ok={a11yOk} />
-              <CheckRow label="悬浮窗" ok={overlayOk} />
               <CheckRow label="短信" ok={smsOk} />
 
               {!debug?.listenerConnected ? (
