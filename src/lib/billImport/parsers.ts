@@ -27,11 +27,23 @@ export interface ParsedBill {
   fingerprint: string;
 }
 
+export interface SkipReasons {
+  /** 交易状态是关闭/失败 */
+  status: number;
+  /** 「不计收支」这类不计入的流水 */
+  notCounted: number;
+  /** 金额列解析不出数字 */
+  amount: number;
+  /** 日期列解析不出日期 */
+  date: number;
+}
+
 export interface ParseOutcome {
   source: BillSource | null;
   records: ParsedBill[];
-  /** 跳过条数（不计收支 / 交易关闭 / 金额异常） */
+  /** 跳过条数（不计收支 / 交易关闭 / 金额异常 / 日期异常） */
   skipped: number;
+  reasons: SkipReasons;
   /** 给用户看的提示，如「未识别的文件格式」 */
   message?: string;
 }
@@ -112,13 +124,37 @@ function amountToCents(raw: string): number | null {
   return negative ? -cents : cents;
 }
 
-/** "2026-10-01 12:00:00" → "2026-10-01" */
+/**
+ * 日期解析：
+ * - 文本形式 "2026-10-01 12:00:00" / "2026/10/1"
+ * - **Excel 日期序列号**（xlsx 里日期常以数字存，如 46320 表示 2026-11-24），
+ *   少数导出会把时间也塞进小数部分，小数部分直接丢掉。
+ */
 function extractDate(raw: string): string | null {
-  const match = /(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(raw);
-  if (!match) return null;
-  const [, y, m, d] = match;
-  const date = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-  return date;
+  const text = raw.trim();
+
+  const match = /(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/.exec(text);
+  if (match) {
+    const [, y, m, d] = match;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  // Excel 序列号：以 1899-12-30 为原点（兼容 Excel 的 1900 闰年 bug）
+  if (/^\d{5}(\.\d+)?$/.test(text)) {
+    const serial = Math.floor(Number(text));
+    const base = Date.UTC(1899, 11, 30);
+    const date = new Date(base + serial * 24 * 60 * 60 * 1000);
+    if (Number.isNaN(date.getTime())) return null;
+
+    const year = date.getUTCFullYear();
+    if (year < 2000 || year > 2100) return null;
+
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return null;
 }
 
 function emptyToDash(value: string): string {
@@ -127,15 +163,23 @@ function emptyToDash(value: string): string {
 }
 
 export function parseBillRows(rows: string[][]): ParseOutcome {
+  const reasons: SkipReasons = { status: 0, notCounted: 0, amount: 0, date: 0 };
+
   const headerIndex = findHeaderIndex(rows);
   if (headerIndex < 0) {
-    return { source: null, records: [], skipped: 0, message: '没找到表头（需要包含「交易时间」的行）' };
+    return {
+      source: null,
+      records: [],
+      skipped: 0,
+      reasons,
+      message: '没找到表头（需要包含「交易时间」的行）',
+    };
   }
 
   const header = rows[headerIndex].map((cell) => cell.trim());
   const source = detectSource(header);
   if (!source) {
-    return { source: null, records: [], skipped: 0, message: '不是支付宝或微信的账单格式' };
+    return { source: null, records: [], skipped: 0, reasons, message: '不是支付宝或微信的账单格式' };
   }
 
   const idx = {
@@ -151,7 +195,7 @@ export function parseBillRows(rows: string[][]): ParseOutcome {
   };
 
   if (idx.date < 0 || idx.amount < 0) {
-    return { source, records: [], skipped: 0, message: '表头缺少「交易时间」或「金额」列' };
+    return { source, records: [], skipped: 0, reasons, message: '表头缺少「交易时间」或「金额」列' };
   }
 
   const get = (row: string[], index: number): string => (index >= 0 ? (row[index] ?? '').trim() : '');
@@ -168,24 +212,28 @@ export function parseBillRows(rows: string[][]): ParseOutcome {
     const status = get(row, idx.status);
     if (/关闭|失败|已撤销|交易取消/.test(status)) {
       skipped += 1;
+      reasons.status += 1;
       continue;
     }
 
     const directionText = get(row, idx.direction);
     if (directionText.includes('不计')) {
       skipped += 1;
+      reasons.notCounted += 1;
       continue;
     }
 
     const rawAmount = amountToCents(amountText);
     if (rawAmount === null) {
       skipped += 1;
+      reasons.amount += 1;
       continue;
     }
 
     const date = extractDate(dateText);
     if (!date) {
       skipped += 1;
+      reasons.date += 1;
       continue;
     }
 
@@ -226,7 +274,7 @@ export function parseBillRows(rows: string[][]): ParseOutcome {
     });
   }
 
-  return { source, records, skipped };
+  return { source, records, skipped, reasons };
 }
 
 interface CategoryInput {

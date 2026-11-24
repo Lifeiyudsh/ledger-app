@@ -46,6 +46,9 @@ class ReceiptAccessibilityService : AccessibilityService() {
   private var lastSignature: String = ""
   private var lastSignatureAt: Long = 0L
 
+  /** 「页面里没看到支付成功字样」的日志节流，避免刷屏 */
+  private var lastMissLoggedAt: Long = 0L
+
   private val scanCount = AtomicInteger(0)
 
   override fun onServiceConnected() {
@@ -103,7 +106,10 @@ class ReceiptAccessibilityService : AccessibilityService() {
       if (combined.length < 4) return
 
       // 不是交易结果页就别动：既省电也避免碰到隐私内容
-      if (SUCCESS_MARKERS.none { combined.contains(it) }) return
+      if (SUCCESS_MARKERS.none { combined.contains(it) }) {
+        logMiss(packageName, combined)
+        return
+      }
 
       val result = AmountParser.parse(combined)
       val amountFen = result.amountFen
@@ -172,6 +178,33 @@ class ReceiptAccessibilityService : AccessibilityService() {
     } catch (t: Throwable) {
       Log.w(TAG, "扫描页面失败", t)
     }
+  }
+
+  /**
+   * 收到目标应用的事件但页面上没有成功字样时，30 秒记一条。
+   * 这样在「最近通知原文」里能区分：服务压根没跑 / 跑了但页面不匹配。
+   */
+  private fun logMiss(packageName: String, combined: String) {
+    val now = System.currentTimeMillis()
+    if (now - lastMissLoggedAt < 30_000L) return
+    lastMissLoggedAt = now
+
+    DebugLogStore.append(
+      this,
+      DebugLogStore.Entry(
+        timestamp = now,
+        packageName = packageName,
+        title = "读屏（页面无支付成功字样）",
+        text = combined.take(200),
+        bigText = "",
+        subText = "",
+        tickerText = "",
+        extrasDump = "",
+        isMatch = false,
+        amountFen = null,
+        matchedKeyword = ""
+      )
+    )
   }
 
   /** 递归收集页面文本（限制深度与总量，避免超大列表把主线程拖死） */

@@ -5,7 +5,7 @@ import { existingFingerprints, markImported } from '../../db/imports';
 import { createTransaction } from '../../db/transactions';
 import { parseCsv } from './csv';
 import { decodeBillFile } from './decode';
-import { parseBillRows, type BillSource, type ParsedBill } from './parsers';
+import { parseBillRows, type BillSource, type ParsedBill, type SkipReasons } from './parsers';
 import { isXlsxEntries, readXlsxRows, readXlsxSheets } from './xlsx';
 
 /**
@@ -23,8 +23,12 @@ export interface ImportPreview {
   duplicates: number;
   /** 文件里被规则跳过的条数（不计收支、交易关闭等） */
   skipped: number;
+  /** 跳过原因细分，方便定位「为什么一条都没进来」 */
+  reasons: SkipReasons;
   message?: string;
 }
+
+const EMPTY_REASONS: SkipReasons = { status: 0, notCounted: 0, amount: 0, date: 0 };
 
 const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04];
 
@@ -95,7 +99,14 @@ async function extractTables(
 export async function previewBillFile(uri: string, fileName: string): Promise<ImportPreview> {
   const bytes = await readBytes(uri);
   if (bytes.length === 0) {
-    return { source: null, records: [], duplicates: 0, skipped: 0, message: '文件是空的' };
+    return {
+      source: null,
+      records: [],
+      duplicates: 0,
+      skipped: 0,
+      reasons: EMPTY_REASONS,
+      message: '文件是空的',
+    };
   }
 
   const candidates = await extractTables(bytes, fileName);
@@ -105,16 +116,27 @@ export async function previewBillFile(uri: string, fileName: string): Promise<Im
       records: [],
       duplicates: 0,
       skipped: 0,
+      reasons: EMPTY_REASONS,
       message:
         '没从这个文件里读到表格。\n\n如果它是压缩包，请在文件管理器里解压后选里面的 .csv 或 .xlsx；如果它本身就是 Excel 文件，可能是加密或损坏的版本。',
     };
   }
 
   let totalSkipped = 0;
+  const mergedReasons: SkipReasons = { ...EMPTY_REASONS };
+
+  const mergeReasons = (reasons: SkipReasons) => {
+    mergedReasons.status += reasons.status;
+    mergedReasons.notCounted += reasons.notCounted;
+    mergedReasons.amount += reasons.amount;
+    mergedReasons.date += reasons.date;
+  };
+
   for (const candidate of candidates) {
     const outcome = parseBillRows(candidate.rows);
     if (!outcome.source) {
       totalSkipped += outcome.skipped;
+      mergeReasons(outcome.reasons);
       continue;
     }
 
@@ -129,11 +151,14 @@ export async function previewBillFile(uri: string, fileName: string): Promise<Im
     const existing = existingFingerprints(unique.map((record) => record.fingerprint));
     const fresh = unique.filter((record) => !existing.has(record.fingerprint));
 
+    mergeReasons(outcome.reasons);
+
     return {
       source: outcome.source,
       records: fresh,
       duplicates: unique.length - fresh.length,
       skipped: totalSkipped + outcome.skipped,
+      reasons: mergedReasons,
     };
   }
 
@@ -142,6 +167,7 @@ export async function previewBillFile(uri: string, fileName: string): Promise<Im
     records: [],
     duplicates: 0,
     skipped: totalSkipped,
+    reasons: mergedReasons,
     message: '没识别出支付宝或微信的账单格式',
   };
 }

@@ -142,9 +142,12 @@ export default function ImportScreen() {
 
         {preview && stats ? (
           <View style={[styles.card, cardShadow]}>
-            <Text style={styles.cardTitle}>{fileName}</Text>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {fileName}
+            </Text>
             <Text style={styles.meta}>
-              {preview.source === 'alipay' ? '支付宝账单' : '微信支付账单'} · {stats.from} ~ {stats.to}
+              {preview.source === 'alipay' ? '支付宝账单' : '微信支付账单'}
+              {stats.from && stats.to ? ` · ${stats.from} ~ ${stats.to}` : ' · 没有可导入的记录'}
             </Text>
 
             <View style={styles.statsRow}>
@@ -169,7 +172,27 @@ export default function ImportScreen() {
             </View>
 
             {preview.records.length === 0 ? (
-              <Text style={styles.empty}>这份账单里的记录都已经导入过了</Text>
+              <View style={styles.emptyBox}>
+                <Text style={styles.empty}>
+                  {preview.duplicates > 0
+                    ? '这份账单里的记录都已经导入过了'
+                    : '没有可导入的记录，原因：'}
+                </Text>
+                {preview.duplicates === 0 ? (
+                  <Text style={styles.emptyReason}>
+                    {[
+                      preview.reasons.date > 0 ? `日期无法识别 ${preview.reasons.date} 笔` : '',
+                      preview.reasons.amount > 0 ? `金额无法识别 ${preview.reasons.amount} 笔` : '',
+                      preview.reasons.status > 0 ? `交易已关闭/失败 ${preview.reasons.status} 笔` : '',
+                      preview.reasons.notCounted > 0
+                        ? `不计收支 ${preview.reasons.notCounted} 笔`
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join('\n') || '未知原因'}
+                  </Text>
+                ) : null}
+              </View>
             ) : (
               <Pressable
                 onPress={handleImport}
@@ -249,6 +272,8 @@ const styles = StyleSheet.create({
   },
   badgeMuted: { color: colors.sub, backgroundColor: colors.inputBg },
   empty: { fontSize: 12, color: colors.sub, marginTop: spacing.sm },
+  emptyBox: { marginTop: spacing.xs, gap: 2 },
+  emptyReason: { fontSize: 12, color: colors.text, lineHeight: 19 },
   importBtn: {
     marginTop: spacing.sm,
     height: 46,
