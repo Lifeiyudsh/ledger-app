@@ -1,13 +1,16 @@
 package expo.modules.notificationlistener
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.app.Application
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
+import android.view.accessibility.AccessibilityManager
 import android.util.Log
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
@@ -75,6 +78,18 @@ class NotificationListenerModule : Module() {
     /** 跳转系统的「显示在其他应用上层」授权页 */
     Function("requestOverlayPermission") {
       requestOverlayPermission()
+    }
+
+    // ---------- 读屏（无障碍） ----------
+
+    /** 读屏服务是否已开启（用户在系统「无障碍」里手动授权） */
+    Function("isAccessibilityEnabled") {
+      isAccessibilityEnabled()
+    }
+
+    /** 跳系统「无障碍 / 已下载的服务」页面 */
+    Function("openAccessibilitySettings") {
+      openAccessibilitySettings()
     }
 
     /** 诊断快照（JSON 字符串）：气泡没弹出来时，JS 直接展示/复制 */
@@ -176,6 +191,37 @@ class NotificationListenerModule : Module() {
       application?.unregisterActivityLifecycleCallbacks(callbacks)
     } catch (t: Throwable) {
       Log.w(TAG, "注销前台状态监听失败", t)
+    }
+  }
+
+  private fun isAccessibilityEnabled(): Boolean {
+    val context = appContext.reactContext ?: return false
+    return try {
+      val manager =
+        context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager ?: return false
+
+      manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        .any { info ->
+          val serviceInfo = info.resolveInfo?.serviceInfo ?: return@any false
+          serviceInfo.packageName == context.packageName &&
+            serviceInfo.name == ReceiptAccessibilityService::class.java.name
+        }
+    } catch (t: Throwable) {
+      Log.w(TAG, "读取无障碍状态失败", t)
+      false
+    }
+  }
+
+  private fun openAccessibilitySettings(): Boolean {
+    val context = appContext.reactContext ?: return false
+    return try {
+      val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+      true
+    } catch (t: Throwable) {
+      Log.w(TAG, "打开无障碍设置失败", t)
+      false
     }
   }
 

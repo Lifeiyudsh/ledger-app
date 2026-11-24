@@ -97,6 +97,8 @@ interface NotificationListenerNative {
   refreshBinding(): boolean;
   canDrawOverlays(): boolean;
   requestOverlayPermission(): boolean;
+  isAccessibilityEnabled(): boolean;
+  openAccessibilitySettings(): boolean;
   /** 原生返回 JSON 字符串，由 JS 自己 parse（避免依赖 expo 的字典转换） */
   getDebugState(): string;
   setAppInForeground(foreground: boolean): boolean;
@@ -191,6 +193,24 @@ export function subscribeOverlayConfirmed(
     return () => subscription.remove();
   } catch {
     return () => {};
+  }
+}
+
+/** 读屏（无障碍）服务是否已开启 */
+export function isAccessibilityEnabled(): boolean {
+  try {
+    return getNotificationListener()?.isAccessibilityEnabled() ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** 跳系统「无障碍」设置页 */
+export function openAccessibilitySettings(): boolean {
+  try {
+    return getNotificationListener()?.openAccessibilitySettings() ?? false;
+  } catch {
+    return false;
   }
 }
 

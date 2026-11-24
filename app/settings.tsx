@@ -8,7 +8,9 @@ import {
   canDrawOverlays,
   getNotificationListener,
   getOverlayDebugState,
+  isAccessibilityEnabled,
   isNotificationPermissionGranted,
+  openAccessibilitySettings,
   openNotificationListenerSettings,
   requestOverlayPermission,
 } from '../src/lib/notificationBridge';
@@ -35,12 +37,14 @@ export default function SettingsScreen() {
   const [totalCount, setTotalCount] = useState(0);
   const [overlayGranted, setOverlayGranted] = useState(false);
   const [listenerGranted, setListenerGranted] = useState(false);
+  const [a11yEnabled, setA11yEnabled] = useState(false);
 
   const refresh = useCallback(() => {
     setMonthCount(listTransactionsByMonth(month, { limit: 1000 }).length);
     setTotalCount(countAllTransactions());
     setOverlayGranted(canDrawOverlays());
     setListenerGranted(isNotificationPermissionGranted());
+    setA11yEnabled(isAccessibilityEnabled());
   }, [month]);
 
   useFocusEffect(
@@ -234,6 +238,30 @@ export default function SettingsScreen() {
             onPress={() => openNotificationListenerSettings()}
             disabled={!hasModule}
             first
+          />
+          <Row
+            icon="scan-outline"
+            title="读屏自动记账"
+            subtitle={
+              a11yEnabled
+                ? '已开启 · 停在支付结果页就能识别'
+                : '未开启 · 补齐「通知没发」的场景'
+            }
+            onPress={() => {
+              if (!a11yEnabled) {
+                Alert.alert(
+                  '开启读屏自动记账',
+                  '用于在微信/支付宝的支付成功页面自动识别金额。\n\n只在页面出现「支付成功」等字样时读取内容，不收集其他信息。\n\n接下来会跳到系统「无障碍」页面，找到「记账工具」并打开开关。',
+                  [
+                    { text: '取消', style: 'cancel' },
+                    { text: '去开启', onPress: () => openAccessibilitySettings() },
+                  ],
+                );
+              } else {
+                Alert.alert('读屏已开启', '如需关闭，请到系统「无障碍」里关掉「记账工具」。');
+              }
+            }}
+            disabled={!hasModule}
           />
           <Row
             icon="chatbubble-ellipses-outline"

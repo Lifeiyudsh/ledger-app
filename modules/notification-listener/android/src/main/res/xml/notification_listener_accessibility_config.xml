@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  读屏配置：
+  - packageNames 只放微信和支付宝，其他应用的事件系统不会派发给我们
+  - 只监听「窗口切换」和「内容变化」，不做全局文本抓取
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+  android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+  android:accessibilityFeedbackType="feedbackGeneric"
+  android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews"
+  android:canRetrieveWindowContent="true"
+  android:description="@string/notification_listener_accessibility_desc"
+  android:notificationTimeout="300"
+  android:packageNames="com.tencent.mm,com.eg.android.AlipayGphone" />

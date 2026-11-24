@@ -107,84 +107,18 @@ class TransactionNotificationService : NotificationListenerService() {
 
     Log.i(TAG, "命中：${result.matchedKeyword} $amountFen 分")
 
-    val appName = appLabel(packageName)
-    val postedAt = sbn.postTime
-
-    // 两路信号交叉验证（见 ForegroundTracker 注释）：两路都说前台才算前台
-    val check = ForegroundTracker.check(this)
-    val canDraw = OverlayBubbleManager.isPermissionGranted(this)
-
-    Log.d(
-      TAG,
-      "[overlay] 命中 amount=${amountFen}fen dir=${result.direction} " +
-        "foreground=${check.foreground} flag=${check.flag} " +
-        "importance=${check.importance}(${check.importanceSource}) " +
-        "source=${check.source} proc=${check.processName} canDrawOverlays=$canDraw"
-    )
-
-    // App 在后台 + 已授权悬浮窗 → 直接弹气泡，点一下就入库，不用切回 App
-    if (!check.foreground && canDraw) {
-      OverlayDebugState.recordDecision("走气泡（后台 + 有权限）", check, canDraw, combined)
-
-      OverlayBubbleManager.show(
-        this,
-        OverlayBubbleManager.OverlayItem(
-          id = "$postedAt-$amountFen",
-          amountFen = amountFen,
-          direction = result.direction,
-          note = MerchantExtractor.extract(combined, title),
-          rawText = combined,
-          appName = appName,
-          packageName = packageName,
-          postedAt = postedAt
-        ),
-        onFallback = {
-          // 气泡弹不出来（addView 失败等）→ 降级为应用内横幅
-          OverlayDebugState.recordDecision(
-            "气泡失败，降级横幅：${OverlayDebugState.lastError ?: "未知原因"}",
-            check,
-            canDraw,
-            combined
-          )
-          emitTransaction(amountFen, result, combined, title, packageName, appName, postedAt)
-        }
-      )
-      return
-    }
-
-    val reason = if (check.foreground) {
-      "判定为前台，走应用内横幅"
-    } else {
-      "无悬浮窗权限，走应用内横幅"
-    }
-    Log.d(TAG, "[overlay] $reason（${check.source}）")
-    OverlayDebugState.recordDecision(reason, check, canDraw, combined)
-
-    emitTransaction(amountFen, result, combined, title, packageName, appName, postedAt)
-  }
-
-  /** 应用内横幅通道（JS 收到后只做「待确认」，不会直接写库） */
-  private fun emitTransaction(
-    amountFen: Long,
-    result: ParseResult,
-    combined: String,
-    title: String,
-    packageName: String,
-    appName: String,
-    postedAt: Long
-  ) {
-    NotificationBridge.emit(
-      mapOf(
-        "amount" to amountFen / 100.0,
-        "amountFen" to amountFen,
-        "type" to result.direction,
-        "keyword" to result.matchedKeyword,
-        "rawText" to combined,
-        "title" to title,
-        "packageName" to packageName,
-        "appName" to appName,
-        "postedAt" to postedAt.toDouble()
-      )
+    // 出口统一走 CaptureDispatcher（与读屏服务共用同一套气泡/横幅决策）
+    CaptureDispatcher.dispatch(
+      context = this,
+      amountFen = amountFen,
+      direction = result.direction,
+      keyword = result.matchedKeyword,
+      combined = combined,
+      title = title,
+      packageName = packageName,
+      appName = appLabel(packageName),
+      postedAt = sbn.postTime,
+      source = "notification"
     )
   }
 

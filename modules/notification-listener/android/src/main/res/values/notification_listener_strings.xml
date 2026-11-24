@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="notification_listener_accessibility_desc">用于在微信/支付宝的支付成功页面自动识别金额并记账。只在检测到「支付成功」等字样时读取当前页面，不收集其他内容。</string>
+</resources>

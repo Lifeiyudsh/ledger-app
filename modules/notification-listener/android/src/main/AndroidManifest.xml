@@ -26,6 +26,24 @@
         <action android:name="android.service.notification.NotificationListenerService" />
       </intent-filter>
     </service>
+
+    <!--
+      读屏服务：仅在用户手动开启「无障碍」后生效。
+      BIND_ACCESSIBILITY_SERVICE 同样是签名级权限，必须用户去系统设置里授权。
+      事件范围已在 xml 配置里限定为微信/支付宝两个包。
+    -->
+    <service
+      android:name="expo.modules.notificationlistener.ReceiptAccessibilityService"
+      android:label="读屏自动记账"
+      android:exported="true"
+      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+      </intent-filter>
+      <meta-data
+        android:name="android.accessibilityservice"
+        android:resource="@xml/notification_listener_accessibility_config" />
+    </service>
   </application>
 
 </manifest>
