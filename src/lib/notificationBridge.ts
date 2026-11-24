@@ -197,6 +197,18 @@ export function subscribeOverlayConfirmed(
   }
 }
 
+/**
+ * 请求系统重新绑定通知监听服务。
+ * 重装 App 后系统常出现「权限还在、服务没绑上」，这时调一次即可恢复。
+ */
+export function refreshListenerBinding(): boolean {
+  try {
+    return getNotificationListener()?.refreshBinding() ?? false;
+  } catch {
+    return false;
+  }
+}
+
 /** 是否已授予短信权限（银行动账短信自动记账） */
 export function hasSmsPermission(): boolean {
   try {

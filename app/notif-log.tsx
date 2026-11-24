@@ -24,6 +24,7 @@ import {
   isNotificationPermissionGranted,
   openAccessibilitySettings,
   openNotificationListenerSettings,
+  refreshListenerBinding,
   type NotificationLogEntry,
   type OverlayDebugState,
 } from '../src/lib/notificationBridge';
@@ -41,7 +42,9 @@ export default function NotificationLogScreen() {
   const [overlayOk, setOverlayOk] = useState(false);
   const [smsOk, setSmsOk] = useState(false);
   const [debug, setDebug] = useState<OverlayDebugState | null>(null);
+  const [fixing, setFixing] = useState(false);
   const hasModule = getNotificationListener() !== null;
+
 
   const load = useCallback(async () => {
     setListenerOk(isNotificationPermissionGranted());
@@ -51,6 +54,29 @@ export default function NotificationLogScreen() {
     setDebug(getOverlayDebugState());
     setLogs(await getNotificationLogs());
   }, []);
+
+
+  /** 通知使用权在、但服务没绑上：请求系统重绑一次 */
+  const handleFixBinding = useCallback(async () => {
+    if (fixing) return;
+    setFixing(true);
+    refreshListenerBinding();
+    // 绑定是异步的，给它一点时间再复检
+    await new Promise((resolve) => setTimeout(resolve, 1800));
+    await load();
+    setFixing(false);
+
+    if (!getOverlayDebugState()?.listenerConnected) {
+      Alert.alert(
+        '还是没连上',
+        '系统没有响应重绑请求。请去「通知使用权」里把「记账工具」关掉再打开，然后回到本页看状态。',
+        [
+          { text: '知道了', style: 'cancel' },
+          { text: '去设置', onPress: () => openNotificationListenerSettings() },
+        ],
+      );
+    }
+  }, [fixing, load]);
 
   useFocusEffect(
     useCallback(() => {
@@ -174,10 +200,22 @@ export default function NotificationLogScreen() {
               </View>
 
               <CheckRow label="通知使用权" ok={listenerOk} />
-              <CheckRow label="监听服务绑定" ok={Boolean(debug?.listenerConnected)} />
+              <CheckRow label="监听服务绑定" ok={Boolean(debug?.listenerConnected)}>
+                {!debug?.listenerConnected ? (
+                  <Pressable onPress={() => void handleFixBinding()} hitSlop={8} disabled={fixing}>
+                    <Text style={styles.fixLink}>{fixing ? '修复中…' : '修复'}</Text>
+                  </Pressable>
+                ) : null}
+              </CheckRow>
               <CheckRow label="读屏（无障碍）" ok={a11yOk} />
               <CheckRow label="悬浮窗" ok={overlayOk} />
               <CheckRow label="短信" ok={smsOk} />
+
+              {!debug?.listenerConnected ? (
+                <Text style={styles.checkHint}>
+                  服务没绑上时，通知监听收不到任何东西。先点上面的「修复」；不行就去「通知使用权」里把本应用关掉再打开。
+                </Text>
+              ) : null}
 
               {debug?.lastDecision ? (
                 <Text style={styles.lastDecision}>上次判定：{debug.lastDecision}</Text>
@@ -268,11 +306,24 @@ export default function NotificationLogScreen() {
   );
 }
 
-function CheckRow({ label, ok }: { label: string; ok: boolean }) {
+function CheckRow({
+  label,
+  ok,
+  children,
+}: {
+  label: string;
+  ok: boolean;
+  children?: React.ReactNode;
+}) {
   return (
     <View style={styles.checkRow}>
       <Text style={styles.checkLabel}>{label}</Text>
-      <Text style={[styles.checkValue, ok ? styles.ok : styles.bad]}>{ok ? '正常' : '未就绪'}</Text>
+      <View style={styles.checkRight}>
+        <Text style={[styles.checkValue, ok ? styles.ok : styles.bad]}>
+          {ok ? '正常' : '未就绪'}
+        </Text>
+        {children}
+      </View>
     </View>
   );
 }
@@ -327,6 +378,14 @@ const styles = StyleSheet.create({
   ok: { color: colors.income },
   bad: { color: colors.expense },
   lastDecision: { fontSize: 11, color: colors.sub, marginTop: 2, lineHeight: 16 },
+  checkRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  fixLink: { fontSize: 12, fontWeight: '700', color: colors.primary },
+  checkHint: {
+    fontSize: 11,
+    lineHeight: 17,
+    color: colors.expense,
+    marginTop: 2,
+  },
   tip: { fontSize: 12, color: colors.sub, lineHeight: 18 },
   emptyActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   emptyBtn: {
