@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -12,26 +11,13 @@ import { MonthSwitcher } from '../src/components/MonthSwitcher';
 import { TransactionGroupList } from '../src/components/TransactionGroupList';
 import { getCategoryLabel } from '../src/constants/categories';
 import {
-  countAllTransactions,
   deleteTransaction,
   getMonthSummary,
   listTransactionsByMonth,
-  replaceAllTransactions,
 } from '../src/db/transactions';
 import { subscribeAutoBookkeepingDone } from '../src/lib/autoBookkeeping';
-import { copyBackupToClipboard, readBackupFromClipboard } from '../src/lib/backup';
 import { getBudgetCents } from '../src/lib/budget';
-import {
-  canDrawOverlays,
-  getNotificationListener,
-  getOverlayDebugState,
-  openNotificationListenerSettings,
-  requestOverlayPermission,
-  type OverlayDebugState,
-} from '../src/lib/notificationBridge';
 import { clearPendingCapture, usePendingCapture, type PendingCapture } from '../src/lib/pendingCapture';
-import { exportTransactionsCsv } from '../src/lib/export';
-import type { BackupRecord } from '../src/lib/backupFormat';
 import { currentMonthKey, formatDateLabel, formatMonthLabel } from '../src/lib/date';
 import { buildDaySections, type DaySection } from '../src/lib/group';
 import { formatYuan } from '../src/lib/money';
@@ -55,17 +41,11 @@ export default function ListScreen() {
   const [sections, setSections] = useState<DaySection[]>([]);
   const [summary, setSummary] = useState<MonthSummary>(() => emptySummary(currentMonthKey()));
   const [refreshing, setRefreshing] = useState(false);
-  const [busy, setBusy] = useState<'export' | 'backup' | 'restore' | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   /** 当月预算（分），null = 未设置 */
   const [budgetCents, setBudgetCents] = useState<number | null>(null);
   /** 通知监听捕获到的待确认账单（内存态，未落库） */
   const pendingCapture = usePendingCapture();
-  const hasNotificationModule = getNotificationListener() !== null;
-  /** 「显示在其他应用上层」是否已开启（决定用气泡还是应用内横幅） */
-  const [overlayGranted, setOverlayGranted] = useState(false);
-  /** 原生诊断快照（气泡弹不出来时看这里的每一项） */
-  const [debugState, setDebugState] = useState<OverlayDebugState | null>(null);
 
   const load = useCallback(() => {
     const rows = listTransactionsByMonth(month, { limit: 500 });
@@ -83,9 +63,6 @@ export default function ListScreen() {
       load();
 
       let alive = true;
-      setOverlayGranted(canDrawOverlays());
-      const snapshot = getOverlayDebugState();
-      setDebugState(snapshot);
 
       getBudgetCents(month)
         .then((value) => {
@@ -177,142 +154,10 @@ export default function ListScreen() {
     [performDelete, router],
   );
 
-  /** 悬浮窗诊断：把所有决策输入摊开，支持一键复制发给开发者 */
-  const handleOverlayPermission = useCallback(() => {
-    const state = getOverlayDebugState();
-
-    if (!state) {
-      Alert.alert('悬浮窗不可用', '当前构建里没有通知监听模块（Expo Go 不支持），请用 dev build / APK。', [
-        { text: '知道了', style: 'cancel' },
-      ]);
-      return;
-    }
-
-    const yesNo = (value: boolean | null) =>
-      value === null || value === undefined ? '未知' : value ? '是' : '否';
-
-    const lines = [
-      `悬浮窗权限：${state.canDrawOverlays ? '有' : '没有'}（判定时：${yesNo(state.lastCanDrawAtDecision)}）`,
-      `原生认为 App 在前台：${state.isAppInForeground ? '是' : '否'}`,
-      `通知监听服务：${state.listenerConnected ? '已连接' : '未连接'}`,
-      '',
-      `上次判定：${state.lastDecision}`,
-      `判定依据：${state.lastForegroundSource}`,
-      `标志位 / importance：${yesNo(state.lastForegroundFlag)} / ${state.lastImportance}`,
-      `importance 来源：${state.lastImportanceSource}｜进程：${state.lastProcessName}`,
-      `最近生命周期事件：${state.lastEventSource}`,
-      `判定时在后台：${yesNo(state.lastForegroundAtDecision === null ? null : !state.lastForegroundAtDecision)}`,
-      `上次 addView：${state.lastAddViewOk === null ? '未尝试' : state.lastAddViewOk ? '成功' : '失败'}`,
-      `窗口类型：${state.lastWindowType}`,
-      `错误信息：${state.lastError ?? '无'}`,
-      `气泡 尝试/成功：${state.showAttempts} / ${state.showSuccesses}`,
-      `待补录队列：${state.pendingQueueSize} 条`,
-    ];
-
-    const body = `${lines.join('\n')}\n\n弹不出气泡时，去系统设置把这 5 项都打开（国产 ROM 都要手动放行）：\n1. 显示在其他应用上层（悬浮窗）\n2. 自启动 —— 关掉「自动管理」，改手动，允许自启动\n3. 关联启动 / 允许被其他应用唤醒\n4. 后台运行 / 后台活动\n5. 电池 → 省电策略设为「无限制」`;
-
-    Alert.alert('悬浮窗诊断', body, [
-      { text: '关闭', style: 'cancel' },
-      {
-        text: '复制诊断',
-        onPress: () => {
-          const payload = `【悬浮窗诊断 ${new Date().toLocaleString()}】\n${lines.join('\n')}\n\n最近通知原文：\n${
-            state.lastNotificationText || '（还没有抓到过通知）'
-          }`;
-          void Clipboard.setStringAsync(payload);
-        },
-      },
-      {
-        text: state.canDrawOverlays ? '重新授权' : '去授权',
-        onPress: () => {
-          requestOverlayPermission();
-        },
-      },
-    ]);
-  }, []);
-
-  const handleExport = useCallback(async () => {
-    if (busy) return;
-    setBusy('export');
-    try {
-      await exportTransactionsCsv(month); // 只导出当前选中月份，文件写入缓存目录后由系统分享面板接管
-    } catch (e) {
-      Alert.alert('导出失败', e instanceof Error ? e.message : '请重试');
-    } finally {
-      setBusy(null);
-    }
-  }, [busy, month]);
-
-  const handleBackup = useCallback(async () => {
-    if (busy) return;
-    setBusy('backup');
-    try {
-      const count = await copyBackupToClipboard();
-      Alert.alert(
-        `备份成功（${count} 条）`,
-        '备份数据已复制到剪贴板，请粘贴到微信等地方保存。',
-      );
-    } catch (e) {
-      Alert.alert('备份失败', e instanceof Error ? e.message : '请重试');
-    } finally {
-      setBusy(null);
-    }
-  }, [busy]);
-
   /** 覆盖恢复：清空 + 批量插入在同一个事务里，失败整体回滚 */
-  const runRestore = useCallback(
-    (records: readonly BackupRecord[]) => {
-      const items = records.map((record) => ({
-        direction: record.direction,
-        amountCents: record.amount_cents,
-        category: record.category,
-        note: record.note,
-        date: record.date,
-        createdAt: record.created_at ?? null,
-      }));
-
-      try {
-        const count = replaceAllTransactions(items);
-        load();
-        Alert.alert('恢复完成', `已恢复 ${count} 条记录`);
-      } catch (e) {
-        Alert.alert('恢复失败', e instanceof Error ? e.message : '数据未写入，请重试');
-      }
-    },
-    [load],
-  );
-
-  const handleRestore = useCallback(async () => {
-    if (busy) return;
-    setBusy('restore');
-    try {
-      const result = await readBackupFromClipboard();
-
-      const current = countAllTransactions();
-      const skippedTip =
-        result.rejected > 0 ? `\n其中 ${result.rejected} 条格式不合法，会被忽略。` : '';
-      Alert.alert(
-        '覆盖恢复？',
-        `剪贴板里有 ${result.accepted.length} 条记录，当前已有 ${current} 条。\n恢复会先清空现有全部账单再写入，不可撤销。${skippedTip}`,
-        [
-          { text: '取消', style: 'cancel' },
-          { text: '覆盖恢复', style: 'destructive', onPress: () => runRestore(result.accepted) },
-        ],
-      );
-    } catch (e) {
-      Alert.alert('恢复失败', e instanceof Error ? e.message : '请重试');
-    } finally {
-      setBusy(null);
-    }
-  }, [busy, runRestore]);
-
   const openMoreMenu = useCallback(() => {
-    if (busy) return;
-    // 打开菜单前刷新一次诊断，保证「权限/前后台」显示的是最新值
-    setOverlayGranted(canDrawOverlays());
-    setDebugState(getOverlayDebugState());
     setMenuVisible(true);
-  }, [busy]);
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -342,10 +187,10 @@ export default function ListScreen() {
               </Pressable>
 
               <Pressable
-                onPress={() => router.push(`/budget?month=${month}`)}
+                onPress={() => router.push('/settings')}
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel="预算设置"
+                accessibilityLabel="设置"
                 style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
               >
                 <Ionicons name="settings-outline" size={19} color={colors.text} />
@@ -353,15 +198,12 @@ export default function ListScreen() {
 
               <Pressable
                 onPress={openMoreMenu}
-                disabled={busy !== null}
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel="更多操作：导出、备份、恢复"
+                accessibilityLabel="更多操作：账单导入、设置"
                 style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
               >
-                <Text style={[styles.headerMore, busy !== null && styles.headerActionDisabled]}>
-                  ⋯
-                </Text>
+                <Text style={styles.headerMore}>⋯</Text>
               </Pressable>
             </View>
           ),
@@ -422,54 +264,15 @@ export default function ListScreen() {
           {
             key: 'import',
             label: '账单导入',
-            hint: '支付宝/微信账单一次导进来',
+            hint: '支付宝/微信账单，xlsx 或 csv 都支持',
             onPress: () => router.push('/import'),
           },
           {
-            key: 'csv',
-            label: `导出 ${formatMonthLabel(month)} CSV`,
-            hint: '只包含当前月份的账单',
-            onPress: () => void handleExport(),
+            key: 'settings',
+            label: '设置',
+            hint: '导出、备份恢复、自动记账',
+            onPress: () => router.push('/settings'),
           },
-          {
-            key: 'backup',
-            label: '备份到剪贴板',
-            hint: '复制 JSON，粘贴到微信/备忘录保存',
-            onPress: () => void handleBackup(),
-          },
-          {
-            key: 'restore',
-            label: '从剪贴板恢复',
-            hint: '读取剪贴板 JSON 并覆盖当前数据',
-            onPress: () => void handleRestore(),
-          },
-          // 只有装了带原生模块的构建（dev build / apk）才会出现
-          ...(hasNotificationModule
-            ? [
-                {
-                  key: 'overlay',
-                  label: `悬浮窗权限：${overlayGranted ? '有' : '没有'}`,
-                  hint: `当前是否在后台：${
-                    (debugState?.isAppInForeground ?? true) ? '否' : '是'
-                  } · 点按查看诊断`,
-                  onPress: handleOverlayPermission,
-                },
-                {
-                  key: 'notif-log',
-                  label: '最近通知原文（调试）',
-                  hint: '看抓到过哪些通知，判断是没发还是没识别',
-                  onPress: () => router.push('/notif-log'),
-                },
-                {
-                  key: 'notification',
-                  label: '通知监听设置',
-                  hint: '需在系统里授予「通知使用权」才能自动识别',
-                  onPress: () => {
-                    openNotificationListenerSettings();
-                  },
-                },
-              ]
-            : []),
         ]}
       />
     </SafeAreaView>

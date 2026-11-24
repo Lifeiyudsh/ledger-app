@@ -6,6 +6,7 @@ import { createTransaction } from '../../db/transactions';
 import { parseCsv } from './csv';
 import { decodeBillFile } from './decode';
 import { parseBillRows, type BillSource, type ParsedBill } from './parsers';
+import { readXlsxRows } from './xlsx';
 
 /**
  * 账单文件 → 待导入记录。
@@ -36,28 +37,44 @@ function isZip(bytes: Uint8Array): boolean {
   return ZIP_MAGIC.every((value, index) => bytes[index] === value);
 }
 
-/** 取出所有 CSV 候选（zip 里可能有说明文件，按大小倒序） */
-async function extractCsvCandidates(
+/**
+ * 取出所有可解析的表格：
+ * - zip 里可能是 csv（微信旧版）也可能是 xlsx（夸克/浏览器下载会改名）
+ * - 直接选 xlsx 时，xlsx 本身也是 zip，同样走这一条
+ * - 直接选 csv 时按文本解码
+ */
+async function extractTables(
   bytes: Uint8Array,
   fileName: string,
-): Promise<Array<{ name: string; text: string }>> {
-  if (isZip(bytes)) {
-    const zip = await JSZip.loadAsync(bytes);
-    const entries = Object.values(zip.files)
-      .filter((entry) => !entry.dir && /\.csv$/i.test(entry.name))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const candidates: Array<{ name: string; text: string }> = [];
-    for (const entry of entries) {
-      const data = await entry.async('uint8array');
-      candidates.push({ name: entry.name, text: decodeBillFile(data) });
-    }
-    // 明细文件通常更大，先试大的
-    candidates.sort((a, b) => b.text.length - a.text.length);
-    return candidates;
+): Promise<Array<{ name: string; rows: string[][] }>> {
+  if (!isZip(bytes)) {
+    return [{ name: fileName, rows: parseCsv(decodeBillFile(bytes)) }];
   }
 
-  return [{ name: fileName, text: decodeBillFile(bytes) }];
+  const zip = await JSZip.loadAsync(bytes);
+  const entries = Object.values(zip.files).filter(
+    (entry) => !entry.dir && /\.(csv|xlsx|xls)$/i.test(entry.name),
+  );
+
+  const tables: Array<{ name: string; rows: string[][] }> = [];
+
+  for (const entry of entries) {
+    try {
+      if (/\.xlsx$/i.test(entry.name)) {
+        tables.push({ name: entry.name, rows: await readXlsxRows(await entry.async('uint8array')) });
+      } else if (/\.csv$/i.test(entry.name)) {
+        const data = await entry.async('uint8array');
+        tables.push({ name: entry.name, rows: parseCsv(decodeBillFile(data)) });
+      }
+      // .xls（老二进制格式）跳过
+    } catch (error) {
+      console.warn('[billImport] 解析失败', entry.name, error);
+    }
+  }
+
+  // 明细表通常行数最多，先试大的
+  tables.sort((a, b) => b.rows.length - a.rows.length);
+  return tables;
 }
 
 export async function previewBillFile(uri: string, fileName: string): Promise<ImportPreview> {
@@ -66,20 +83,20 @@ export async function previewBillFile(uri: string, fileName: string): Promise<Im
     return { source: null, records: [], duplicates: 0, skipped: 0, message: '文件是空的' };
   }
 
-  const candidates = await extractCsvCandidates(bytes, fileName);
+  const candidates = await extractTables(bytes, fileName);
   if (candidates.length === 0) {
     return {
       source: null,
       records: [],
       duplicates: 0,
       skipped: 0,
-      message: '压缩包里没找到 CSV，请确认是账单导出文件',
+      message: '文件里没找到表格（需要 .xlsx 或 .csv），请确认是账单导出文件',
     };
   }
 
   let totalSkipped = 0;
   for (const candidate of candidates) {
-    const outcome = parseBillRows(parseCsv(candidate.text));
+    const outcome = parseBillRows(candidate.rows);
     if (!outcome.source) {
       totalSkipped += outcome.skipped;
       continue;

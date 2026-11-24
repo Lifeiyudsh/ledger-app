@@ -39,7 +39,15 @@ export default function ImportScreen() {
     setBusy(true);
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'text/comma-separated-values', 'application/zip', 'application/octet-stream', '*/*'],
+        type: [
+          'text/csv',
+          'text/comma-separated-values',
+          'application/zip',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'application/octet-stream',
+          '*/*',
+        ],
         copyToCacheDirectory: true,
         multiple: false,
       });
@@ -112,7 +120,7 @@ export default function ImportScreen() {
           <Text style={styles.step}>微信：我 → 服务 → 钱包 → 账单 → 常见问题 → 下载账单 → 用于个人对账</Text>
           <Text style={styles.step}>支付宝：我的 → 账单 → 右上角 ⋯ → 开具交易流水证明 → 用于个人对账</Text>
           <Text style={styles.hint}>
-            导出的是 zip，直接选 zip 就行，不用解压。也支持单独的 CSV。
+            zip、xlsx、csv 都能直接选，不用解压。浏览器下载后被改成 .xlsx 也没关系。
           </Text>
         </View>
 
