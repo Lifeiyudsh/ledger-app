@@ -119,6 +119,49 @@ function parseSheet(xml: string, shared: string[]): string[][] {
   return rows;
 }
 
+/**
+ * 判断一个 zip 的条目列表是不是「单个 xlsx 文件」。
+ *
+ * 关键：xlsx 本身就是 zip，里面装的是 xl/workbook.xml 这类 XML 部件，
+ * 不会有 .csv / .xlsx 文件。之前按扩展名在 zip 里找表格，导致纯 xlsx 直接被判成空。
+ */
+export function isXlsxEntries(names: readonly string[]): boolean {
+  if (names.includes('xl/workbook.xml')) return true;
+  return names.some((name) => /^xl\/worksheets\/[^/]+\.xml$/i.test(name));
+}
+
+/**
+ * 读取全部工作表。微信/支付宝导出偶尔把「说明」放在 sheet1、明细放在 sheet2，
+ * 只读第一个 sheet 会拿到一堆说明文字，所以这里全读出来交给上层挑。
+ */
+export async function readXlsxSheets(
+  bytes: Uint8Array,
+): Promise<Array<{ name: string; rows: string[][] }>> {
+  const zip = await JSZip.loadAsync(bytes);
+
+  const sharedFile = zip.file('xl/sharedStrings.xml');
+  const shared = sharedFile ? parseSharedStrings(await sharedFile.async('string')) : [];
+
+  const sheetEntries = Object.values(zip.files)
+    .filter((entry) => !entry.dir && /^xl\/worksheets\/[^/]+\.xml$/i.test(entry.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (sheetEntries.length === 0) {
+    throw new Error('xlsx 里没有工作表');
+  }
+
+  const sheets: Array<{ name: string; rows: string[][] }> = [];
+  for (const entry of sheetEntries) {
+    try {
+      sheets.push({ name: entry.name, rows: parseSheet(await entry.async('string'), shared) });
+    } catch (error) {
+      console.warn('[xlsx] 工作表解析失败', entry.name, error);
+    }
+  }
+
+  return sheets;
+}
+
 /** 读取 xlsx 的第一个工作表，返回二维字符串数组 */
 export async function readXlsxRows(bytes: Uint8Array): Promise<string[][]> {
   const zip = await JSZip.loadAsync(bytes);

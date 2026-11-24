@@ -6,7 +6,7 @@ import { createTransaction } from '../../db/transactions';
 import { parseCsv } from './csv';
 import { decodeBillFile } from './decode';
 import { parseBillRows, type BillSource, type ParsedBill } from './parsers';
-import { readXlsxRows } from './xlsx';
+import { isXlsxEntries, readXlsxRows, readXlsxSheets } from './xlsx';
 
 /**
  * 账单文件 → 待导入记录。
@@ -52,6 +52,21 @@ async function extractTables(
   }
 
   const zip = await JSZip.loadAsync(bytes);
+
+  // 情况一：这个 zip 本身就是一个 xlsx（微信/夸克下载的常见形态）
+  if (isXlsxEntries(Object.keys(zip.files))) {
+    try {
+      // 全部工作表都当成候选，上层会挑能识别出货表格式的那个
+      const sheets = await readXlsxSheets(bytes);
+      const usable = sheets.filter((sheet) => sheet.rows.length > 0);
+      return usable.length > 0 ? usable : [{ name: fileName, rows: await readXlsxRows(bytes) }];
+    } catch (error) {
+      console.warn('[billImport] xlsx 解析失败', error);
+      return [];
+    }
+  }
+
+  // 情况二：压缩包里装着 csv / xlsx（支付宝、微信导出的账单包）
   const entries = Object.values(zip.files).filter(
     (entry) => !entry.dir && /\.(csv|xlsx|xls)$/i.test(entry.name),
   );
@@ -90,7 +105,8 @@ export async function previewBillFile(uri: string, fileName: string): Promise<Im
       records: [],
       duplicates: 0,
       skipped: 0,
-      message: '文件里没找到表格（需要 .xlsx 或 .csv），请确认是账单导出文件',
+      message:
+        '没从这个文件里读到表格。\n\n如果它是压缩包，请在文件管理器里解压后选里面的 .csv 或 .xlsx；如果它本身就是 Excel 文件，可能是加密或损坏的版本。',
     };
   }
 
