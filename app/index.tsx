@@ -1,19 +1,26 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionMenu } from '../src/components/ActionMenu';
+import { CategoryGrid } from '../src/components/CategoryGrid';
 import { BudgetBanner } from '../src/components/BudgetBanner';
 import { PendingCaptureBanner } from '../src/components/PendingCaptureBanner';
 import { MonthSummaryCard } from '../src/components/MonthSummaryCard';
 import { MonthSwitcher } from '../src/components/MonthSwitcher';
 import { TransactionGroupList } from '../src/components/TransactionGroupList';
-import { getCategoryLabel } from '../src/constants/categories';
+import {
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+  getCategoryLabel,
+  type CategoryKey,
+} from '../src/constants/categories';
 import {
   deleteTransaction,
   getMonthSummary,
   listTransactionsByMonth,
+  updateTransaction,
 } from '../src/db/transactions';
 import { subscribeAutoBookkeepingDone } from '../src/lib/autoBookkeeping';
 import { getBudgetCents } from '../src/lib/budget';
@@ -42,6 +49,10 @@ export default function ListScreen() {
   const [summary, setSummary] = useState<MonthSummary>(() => emptySummary(currentMonthKey()));
   const [refreshing, setRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  /** 长按某一笔后弹出的操作对象 */
+  const [rowAction, setRowAction] = useState<Transaction | null>(null);
+  /** 正在快速改分类的那一笔 */
+  const [quickEdit, setQuickEdit] = useState<Transaction | null>(null);
   /** 当月预算（分），null = 未设置 */
   const [budgetCents, setBudgetCents] = useState<number | null>(null);
   /** 通知监听捕获到的待确认账单（内存态，未落库） */
@@ -139,19 +150,31 @@ export default function ListScreen() {
   );
 
   /** 长按：操作菜单本身就是一次确认，不再叠第二层弹窗 */
-  const handleRowLongPress = useCallback(
-    (item: Transaction) => {
-      Alert.alert(
-        `${getCategoryLabel(item.category)} ${formatYuan(item.amountCents)}`,
-        formatDateLabel(item.date),
-        [
-          { text: '取消', style: 'cancel' },
-          { text: '编辑', onPress: () => router.push(`/edit?id=${item.id}`) },
-          { text: '删除', style: 'destructive', onPress: () => performDelete(item) },
-        ],
-      );
+  const handleRowLongPress = useCallback((item: Transaction) => {
+    setRowAction(item);
+  }, []);
+
+  /** 长按菜单里选「改分类」→ 选中即生效，不进入编辑页 */
+  const handleQuickCategory = useCallback(
+    (category: CategoryKey) => {
+      const target = quickEdit;
+      if (!target) return;
+
+      try {
+        updateTransaction(target.id, {
+          direction: target.direction,
+          amountCents: target.amountCents,
+          category,
+          note: target.note,
+          date: target.date,
+        });
+        setQuickEdit(null);
+        load();
+      } catch (error) {
+        Alert.alert('修改失败', error instanceof Error ? error.message : '请重试');
+      }
     },
-    [performDelete, router],
+    [load, quickEdit],
   );
 
   /** 覆盖恢复：清空 + 批量插入在同一个事务里，失败整体回滚 */
@@ -256,6 +279,66 @@ export default function ListScreen() {
         <Text style={styles.fabIcon}>＋</Text>
       </Pressable>
 
+      {/* 长按某一笔：改分类 / 编辑 / 删除 */}
+      <ActionMenu
+        visible={rowAction !== null}
+        title={
+          rowAction
+            ? `${getCategoryLabel(rowAction.category)} ${formatYuan(rowAction.amountCents)}`
+            : ''
+        }
+        onClose={() => setRowAction(null)}
+        items={[
+          {
+            key: 'category',
+            label: '改分类',
+            hint: '选一下立刻生效，不用进编辑页',
+            onPress: () => {
+              setQuickEdit(rowAction);
+              setRowAction(null);
+            },
+          },
+          {
+            key: 'edit',
+            label: '编辑',
+            hint: '改金额、备注、日期',
+            onPress: () => {
+              const id = rowAction?.id;
+              setRowAction(null);
+              if (id) router.push(`/edit?id=${id}`);
+            },
+          },
+          {
+            key: 'delete',
+            label: '删除',
+            hint: '删掉这一笔',
+            onPress: () => {
+              const target = rowAction;
+              setRowAction(null);
+              if (target) performDelete(target);
+            },
+          },
+        ]}
+      />
+
+      {/* 快速改分类 */}
+      <Modal
+        visible={quickEdit !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setQuickEdit(null)}
+      >
+        <Pressable style={styles.sheetBackdrop} onPress={() => setQuickEdit(null)} />
+        <View style={styles.sheet}>
+          <Text style={styles.sheetTitle}>改分类</Text>
+          <CategoryGrid
+            options={quickEdit?.direction === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES}
+            value={quickEdit?.category ?? null}
+            onChange={handleQuickCategory}
+          />
+        </View>
+      </Modal>
+
       <ActionMenu
         visible={menuVisible}
         title={formatMonthLabel(month)}
@@ -318,4 +401,14 @@ const styles = StyleSheet.create({
   },
   fabPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   fabIcon: { fontSize: 26, color: '#ffffff', lineHeight: 30, fontWeight: '500' },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+  },
+  sheetTitle: { fontSize: 15, fontWeight: '600', color: colors.text, textAlign: 'center' },
 });
