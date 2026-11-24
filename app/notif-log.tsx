@@ -138,7 +138,7 @@ export default function NotificationLogScreen() {
             </View>
 
             <Text style={styles.tip}>
-              最近 {logs.length} 条（含未命中）。点卡片可复制原文。
+              最近 {logs.length} 条，只记录和支付相关的通知（含未命中）。点卡片可复制原文。
             </Text>
           </View>
         }

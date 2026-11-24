@@ -65,22 +65,26 @@ class TransactionNotificationService : NotificationListenerService() {
 
     val result = AmountParser.parse(combined)
 
-    DebugLogStore.append(
-      applicationContext,
-      DebugLogStore.Entry(
-        timestamp = System.currentTimeMillis(),
-        packageName = packageName,
-        title = title,
-        text = text,
-        bigText = bigText,
-        subText = subText,
-        tickerText = tickerText,
-        extrasDump = extrasDump,
-        isMatch = result.isMatch,
-        amountFen = result.amountFen,
-        matchedKeyword = result.matchedKeyword
+    // 只记和钱有关的：命中的 / 目标应用的 / 正文出现金额或支付字眼的。
+    // 否则「XX 已使用 5 小时 47 分钟」这类通知会把 50 条容量占满，把有用的记录挤掉。
+    if (result.isMatch || TargetApps.isTarget(packageName) || looksPaymentRelated(combined, title)) {
+      DebugLogStore.append(
+        applicationContext,
+        DebugLogStore.Entry(
+          timestamp = System.currentTimeMillis(),
+          packageName = packageName,
+          title = title,
+          text = text,
+          bigText = bigText,
+          subText = subText,
+          tickerText = tickerText,
+          extrasDump = extrasDump,
+          isMatch = result.isMatch,
+          amountFen = result.amountFen,
+          matchedKeyword = result.matchedKeyword
+        )
       )
-    )
+    }
 
     Log.d(
       TAG,
@@ -130,6 +134,12 @@ class TransactionNotificationService : NotificationListenerService() {
 
   private fun Bundle?.readText(key: String): String =
     this?.getCharSequence(key)?.toString()?.trim().orEmpty()
+
+  /** 粗筛：正文像不像一条和钱有关的记录（决定要不要写调试日志） */
+  private fun looksPaymentRelated(text: String, title: String): Boolean {
+    val haystack = "$text\n$title"
+    return PAYMENT_HINTS.any { haystack.contains(it) }
+  }
 
   /** 聚合摘要形如「[2条]微信支付：退款到账通知」，本身不含金额 */
   private fun looksLikeSummary(text: String): Boolean = SUMMARY_PATTERN.containsMatchIn(text)
@@ -205,6 +215,11 @@ class TransactionNotificationService : NotificationListenerService() {
     private const val TAG = "NotifyListener"
     private const val DUMP_LIMIT = 4000
     private const val MAX_SIBLINGS = 10
+
+    /** 日志只关心和支付相关的通知，其余的一律不写盘 */
+    private val PAYMENT_HINTS = listOf(
+      "¥", "￥", "元", "支付", "消费", "付款", "收款", "转账", "退款", "扣款", "账单"
+    )
 
     private val SUMMARY_PATTERN = Regex("""\[\s*[0-9]+\s*条\s*\]""")
 

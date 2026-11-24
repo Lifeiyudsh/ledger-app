@@ -25,8 +25,6 @@ class ReceiptAccessibilityService : AccessibilityService() {
   companion object {
     private const val TAG = "ReceiptA11y"
 
-    private val TARGET_PACKAGES = setOf("com.tencent.mm", "com.eg.android.AlipayGphone")
-
     /** 出现这些词才认为当前页面是「交易成功页」 */
     private val SUCCESS_MARKERS = listOf(
       "支付成功", "付款成功", "交易成功", "转账成功", "已支付",
@@ -67,7 +65,7 @@ class ReceiptAccessibilityService : AccessibilityService() {
   override fun onAccessibilityEvent(event: AccessibilityEvent?) {
     try {
       val packageName = event?.packageName?.toString() ?: return
-      if (packageName !in TARGET_PACKAGES) return
+      if (!TargetApps.isTarget(packageName)) return
 
       val type = event.eventType
       if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
@@ -146,7 +144,7 @@ class ReceiptAccessibilityService : AccessibilityService() {
       lastSignature = signature
       lastSignatureAt = now
 
-      val appName = if (packageName == "com.tencent.mm") "微信" else "支付宝"
+      val appName = TargetApps.label(packageName)
 
       DebugLogStore.append(
         this,
