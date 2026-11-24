@@ -99,6 +99,11 @@ class ReceiptAccessibilityService : AccessibilityService() {
     try {
       val root = rootInActiveWindow ?: return
 
+      // 关键校验：当前前台窗口必须属于发事件的那个应用。
+      // 否则用户切走后我们读到的是别的 App（包括自己的界面），会张冠李戴。
+      val rootPackage = root.packageName?.toString().orEmpty()
+      if (rootPackage.isNotEmpty() && rootPackage != packageName) return
+
       val builder = StringBuilder()
       collectText(root, builder, 0)
 

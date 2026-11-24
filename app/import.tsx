@@ -85,8 +85,34 @@ export default function ImportScreen() {
           text: '导入',
           onPress: () => {
             try {
-              const { inserted } = commitImport(preview);
+              const { inserted } = commitImport(preview.records);
               Alert.alert('导入完成', `成功导入 ${inserted} 笔账单`, [
+                { text: '好', onPress: () => router.back() },
+              ]);
+            } catch (error) {
+              Alert.alert('导入失败', error instanceof Error ? error.message : '请重试');
+            }
+          },
+        },
+      ],
+    );
+  }, [preview, router]);
+
+  const handleForceImport = useCallback(() => {
+    if (!preview || preview.duplicateRecords.length === 0) return;
+
+    Alert.alert(
+      '重新导入会重复记账',
+      `这 ${preview.duplicateRecords.length} 笔在账本里已经存在。继续会把它们再记一遍，之后需要手动删除。`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '仍然导入',
+          style: 'destructive',
+          onPress: () => {
+            try {
+              const { inserted } = commitImport(preview.duplicateRecords);
+              Alert.alert('已导入', `重复写入了 ${inserted} 笔`, [
                 { text: '好', onPress: () => router.back() },
               ]);
             } catch (error) {
@@ -173,25 +199,38 @@ export default function ImportScreen() {
 
             {preview.records.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Text style={styles.empty}>
-                  {preview.duplicates > 0
-                    ? '这份账单里的记录都已经导入过了'
-                    : '没有可导入的记录，原因：'}
-                </Text>
-                {preview.duplicates === 0 ? (
-                  <Text style={styles.emptyReason}>
-                    {[
-                      preview.reasons.date > 0 ? `日期无法识别 ${preview.reasons.date} 笔` : '',
-                      preview.reasons.amount > 0 ? `金额无法识别 ${preview.reasons.amount} 笔` : '',
-                      preview.reasons.status > 0 ? `交易已关闭/失败 ${preview.reasons.status} 笔` : '',
-                      preview.reasons.notCounted > 0
-                        ? `不计收支 ${preview.reasons.notCounted} 笔`
-                        : '',
-                    ]
-                      .filter(Boolean)
-                      .join('\n') || '未知原因'}
-                  </Text>
-                ) : null}
+                {preview.duplicates > 0 ? (
+                  <>
+                    <Text style={styles.empty}>
+                      这 {preview.duplicates} 笔都已在账本里（按交易单号判断），没有新增内容。
+                    </Text>
+                    <Pressable
+                      onPress={handleForceImport}
+                      style={({ pressed }) => [styles.forceBtn, pressed && styles.forceBtnPressed]}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.forceText}>仍然重新导入这 {preview.duplicates} 笔</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.empty}>没有可导入的记录，原因：</Text>
+                    <Text style={styles.emptyReason}>
+                      {[
+                        preview.reasons.date > 0 ? `日期无法识别 ${preview.reasons.date} 笔` : '',
+                        preview.reasons.amount > 0 ? `金额无法识别 ${preview.reasons.amount} 笔` : '',
+                        preview.reasons.status > 0
+                          ? `交易已关闭/失败 ${preview.reasons.status} 笔`
+                          : '',
+                        preview.reasons.notCounted > 0
+                          ? `不计收支 ${preview.reasons.notCounted} 笔`
+                          : '',
+                      ]
+                        .filter(Boolean)
+                        .join('\n') || '未知原因'}
+                    </Text>
+                  </>
+                )}
               </View>
             ) : (
               <Pressable
@@ -272,7 +311,18 @@ const styles = StyleSheet.create({
   },
   badgeMuted: { color: colors.sub, backgroundColor: colors.inputBg },
   empty: { fontSize: 12, color: colors.sub, marginTop: spacing.sm },
-  emptyBox: { marginTop: spacing.xs, gap: 2 },
+  emptyBox: { marginTop: spacing.xs, gap: spacing.sm },
+  forceBtn: {
+    marginTop: spacing.xs,
+    height: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.expense,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  forceBtnPressed: { opacity: 0.7 },
+  forceText: { fontSize: 13, fontWeight: '600', color: colors.expense },
   emptyReason: { fontSize: 12, color: colors.text, lineHeight: 19 },
   importBtn: {
     marginTop: spacing.sm,

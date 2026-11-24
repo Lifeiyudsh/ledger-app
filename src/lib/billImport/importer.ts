@@ -19,6 +19,8 @@ export interface ImportPreview {
   source: BillSource | null;
   /** 已去重后、可以入库的记录 */
   records: ParsedBill[];
+  /** 因为库里已存在而被挡下的记录（强制重导时用） */
+  duplicateRecords: ParsedBill[];
   /** 库里已有、本次跳过的条数 */
   duplicates: number;
   /** 文件里被规则跳过的条数（不计收支、交易关闭等） */
@@ -102,6 +104,7 @@ export async function previewBillFile(uri: string, fileName: string): Promise<Im
     return {
       source: null,
       records: [],
+      duplicateRecords: [],
       duplicates: 0,
       skipped: 0,
       reasons: EMPTY_REASONS,
@@ -114,6 +117,7 @@ export async function previewBillFile(uri: string, fileName: string): Promise<Im
     return {
       source: null,
       records: [],
+      duplicateRecords: [],
       duplicates: 0,
       skipped: 0,
       reasons: EMPTY_REASONS,
@@ -156,6 +160,7 @@ export async function previewBillFile(uri: string, fileName: string): Promise<Im
     return {
       source: outcome.source,
       records: fresh,
+      duplicateRecords: unique.filter((record) => existing.has(record.fingerprint)),
       duplicates: unique.length - fresh.length,
       skipped: totalSkipped + outcome.skipped,
       reasons: mergedReasons,
@@ -165,6 +170,7 @@ export async function previewBillFile(uri: string, fileName: string): Promise<Im
   return {
     source: null,
     records: [],
+    duplicateRecords: [],
     duplicates: 0,
     skipped: totalSkipped,
     reasons: mergedReasons,
@@ -178,13 +184,16 @@ function buildNote(record: ParsedBill): string {
   return `导入 · ${body}`.slice(0, 100);
 }
 
-/** 确认导入：一个事务里写完交易 + 指纹，任一失败整体回滚 */
-export function commitImport(preview: ImportPreview): { inserted: number } {
-  if (preview.records.length === 0) return { inserted: 0 };
+/**
+ * 确认导入：一个事务里写完交易 + 指纹，任一失败整体回滚。
+ * 传 `preview.duplicateRecords` 就是「忽略去重、重新导入一次」。
+ */
+export function commitImport(records: readonly ParsedBill[]): { inserted: number } {
+  if (records.length === 0) return { inserted: 0 };
 
   let inserted = 0;
   getDb().withTransactionSync(() => {
-    for (const record of preview.records) {
+    for (const record of records) {
       createTransaction({
         direction: record.direction,
         amountCents: record.amountCents,
@@ -195,9 +204,7 @@ export function commitImport(preview: ImportPreview): { inserted: number } {
       inserted += 1;
     }
 
-    markImported(
-      preview.records.map((record) => ({ fingerprint: record.fingerprint, source: record.source })),
-    );
+    markImported(records.map((record) => ({ fingerprint: record.fingerprint, source: record.source })));
   });
 
   return { inserted };

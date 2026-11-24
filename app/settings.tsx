@@ -23,6 +23,7 @@ import {
 import type { BackupRecord } from '../src/lib/backupFormat';
 import { currentMonthKey, formatMonthLabel } from '../src/lib/date';
 import { exportTransactionsCsv } from '../src/lib/export';
+import { clearImportedBills, countImportedBills } from '../src/db/imports';
 import {
   countAllTransactions,
   listTransactionsByMonth,
@@ -41,6 +42,7 @@ export default function SettingsScreen() {
   const [listenerGranted, setListenerGranted] = useState(false);
   const [a11yEnabled, setA11yEnabled] = useState(false);
   const [smsGranted, setSmsGranted] = useState(false);
+  const [importedCount, setImportedCount] = useState(0);
 
   const refresh = useCallback(() => {
     setMonthCount(listTransactionsByMonth(month, { limit: 1000 }).length);
@@ -49,6 +51,7 @@ export default function SettingsScreen() {
     setListenerGranted(isNotificationPermissionGranted());
     setA11yEnabled(isAccessibilityEnabled());
     setSmsGranted(hasSmsPermission());
+    setImportedCount(countImportedBills());
   }, [month]);
 
   useFocusEffect(
@@ -208,6 +211,29 @@ export default function SettingsScreen() {
             title="月度预算"
             subtitle="设置每月预算，超支会在首页提示"
             onPress={() => router.push(`/budget?month=${month}`)}
+          />
+          <Row
+            icon="refresh-outline"
+            title="重置导入记录"
+            subtitle={`已记下 ${importedCount} 条去重指纹，重置后可重新导入同一份账单`}
+            onPress={() => {
+              Alert.alert(
+                '重置导入记录？',
+                '只会清掉「哪些账单导入过」的记录，不动账本里的任何一笔。重置后可以重新导入同一份账单（会重复记账，注意）。',
+                [
+                  { text: '取消', style: 'cancel' },
+                  {
+                    text: '重置',
+                    style: 'destructive',
+                    onPress: () => {
+                      clearImportedBills();
+                      setImportedCount(0);
+                      Alert.alert('已重置', '现在可以重新导入账单了');
+                    },
+                  },
+                ],
+              );
+            }}
           />
           <Row
             icon="share-outline"
