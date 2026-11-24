@@ -204,7 +204,23 @@ export default function StatisticsScreen() {
               const barWidth = `${Math.max(item.percent, 2)}%` as DimensionValue;
 
               return (
-                <View key={item.category} style={[styles.rankRow, index > 0 && styles.rankDivided]}>
+                <Pressable
+                  key={item.category}
+                  onPress={() =>
+                    router.push(
+                      `/category?category=${item.category}&start=${period.start}&end=${period.end}&label=${encodeURIComponent(
+                        periodLabel(period),
+                      )}`,
+                    )
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`查看${category.label}明细`}
+                  style={({ pressed }) => [
+                    styles.rankRow,
+                    index > 0 && styles.rankDivided,
+                    pressed && styles.rankPressed,
+                  ]}
+                >
                   <View style={styles.rankHead}>
                     <View style={styles.rankName}>
                       <View style={[styles.dot, { backgroundColor: color }]} />
@@ -219,7 +235,7 @@ export default function StatisticsScreen() {
                   </View>
 
                   <Text style={styles.rankPercent}>{item.percent.toFixed(1)}%</Text>
-                </View>
+                </Pressable>
               );
             })
           )}
@@ -322,6 +338,7 @@ const styles = StyleSheet.create({
   axisLabel: { fontSize: 10, color: colors.sub },
   empty: { fontSize: 12, color: colors.sub, marginTop: spacing.md },
   rankRow: { paddingTop: spacing.md },
+  rankPressed: { opacity: 0.6 },
   rankDivided: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,

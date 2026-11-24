@@ -41,6 +41,8 @@ export default function RootLayout() {
         <Stack.Screen name="statistics" options={{ headerShown: false }} />
         {/* 通知原文调试页 */}
         <Stack.Screen name="notif-log" options={{ headerShown: false }} />
+        {/* 分类明细（从报表点进来） */}
+        <Stack.Screen name="category" options={{ headerShown: false }} />
         {/* 设置与账单导入 */}
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="import" options={{ headerShown: false }} />
