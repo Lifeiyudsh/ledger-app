@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.RemoteInput
 
 /**
  * 通知里点了「餐饮 / 交通 / 购物」。
@@ -15,21 +16,37 @@ class CategoryFixReceiver : BroadcastReceiver() {
   companion object {
     private const val TAG = "CategoryFix"
     const val ACTION_FIX = "expo.modules.notificationlistener.CATEGORY_FIX"
+    const val ACTION_REPLY = "expo.modules.notificationlistener.CATEGORY_REPLY"
     const val EXTRA_ID = "capture_id"
     const val EXTRA_AMOUNT = "amount_fen"
     const val EXTRA_CATEGORY = "category"
     const val EXTRA_NOTIFICATION_ID = "notification_id"
+    const val EXTRA_REPLY_TEXT = "reply_text"
   }
 
   override fun onReceive(context: Context?, intent: Intent?) {
     if (context == null || intent == null) return
-    if (intent.action != ACTION_FIX) return
+    if (intent.action != ACTION_FIX && intent.action != ACTION_REPLY) return
 
     try {
       val id = intent.getStringExtra(EXTRA_ID).orEmpty()
       val amountFen = intent.getLongExtra(EXTRA_AMOUNT, 0L)
-      val category = intent.getStringExtra(EXTRA_CATEGORY).orEmpty()
-      if (category.isBlank() || amountFen <= 0L) return
+      if (amountFen <= 0L) return
+
+      val category = if (intent.action == ACTION_FIX) {
+        intent.getStringExtra(EXTRA_CATEGORY).orEmpty()
+      } else {
+        ""
+      }
+
+      // 通知里输入的备注
+      val note = if (intent.action == ACTION_REPLY) {
+        RemoteInput.getResultsFromIntent(intent)?.getCharSequence(EXTRA_REPLY_TEXT)?.toString()?.trim().orEmpty()
+      } else {
+        ""
+      }
+
+      if (category.isBlank() && note.isBlank()) return
 
       CategoryFixStore.add(
         context,
@@ -37,6 +54,7 @@ class CategoryFixReceiver : BroadcastReceiver() {
           id = id,
           amountFen = amountFen,
           category = category,
+          note = note.take(100),
           at = System.currentTimeMillis()
         )
       )
@@ -46,7 +64,7 @@ class CategoryFixReceiver : BroadcastReceiver() {
       NotificationManagerCompat.from(context).cancel(notificationId)
       NotificationManagerCompat.from(context).cancel(7300)
 
-      Log.i(TAG, "记录分类修正：$category / $amountFen 分")
+      Log.i(TAG, "记录修正：category=$category note=$note / $amountFen 分")
     } catch (t: Throwable) {
       Log.w(TAG, "处理分类修正失败", t)
     }

@@ -98,6 +98,7 @@ class NotificationListenerModule : Module() {
               "id" to it.id,
               "amountFen" to it.amountFen,
               "category" to it.category,
+              "note" to it.note,
               "at" to it.at.toDouble()
             )
           }

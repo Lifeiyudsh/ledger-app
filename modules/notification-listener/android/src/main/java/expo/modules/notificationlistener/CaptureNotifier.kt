@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.RemoteInput
 
 /**
  * 捕获到消费后立刻弹一条通知，带 3 个分类按钮。
@@ -74,6 +75,31 @@ internal object CaptureNotifier {
         )
         builder.addAction(0, label, pending)
       }
+
+      // 通知里直接输入备注（不用打开 App）
+      val replyIntent = Intent(context, CategoryFixReceiver::class.java).apply {
+        action = CategoryFixReceiver.ACTION_REPLY
+        putExtra(CategoryFixReceiver.EXTRA_ID, captureId)
+        putExtra(CategoryFixReceiver.EXTRA_AMOUNT, amountFen)
+      }
+
+      val remoteInput = RemoteInput.Builder(CategoryFixReceiver.EXTRA_REPLY_TEXT)
+        .setLabel("写备注，如：午餐")
+        .build()
+
+      val replyPending = PendingIntent.getBroadcast(
+        context,
+        99,
+        replyIntent,
+        PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+      )
+
+      builder.addAction(
+        NotificationCompat.Action.Builder(0, "写备注", replyPending)
+          .addRemoteInput(remoteInput)
+          .setAllowGeneratedReplies(true)
+          .build()
+      )
 
       manager.notify(NOTIFICATION_ID_BASE, builder.build())
     } catch (t: Throwable) {

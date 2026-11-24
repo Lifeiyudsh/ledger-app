@@ -64,24 +64,41 @@ export function createTransaction(input: NewTransaction): number {
 }
 
 /**
- * 把「最近一笔同金额的记录」改成指定分类。
- * 用于通知栏里直接点分类：那时 JS 可能刚入库，也可能还没入库，按金额+时间窗兜住。
+ * 修改「最近一笔同金额的支出」的分类 / 备注。
+ * 通知栏里点分类按钮或直接输入备注时，JS 之后靠这个把改动落到账上。
  */
-export function updateRecentCategoryByAmount(
+export function patchRecentByAmount(
   amountCents: number,
-  category: CategoryKey,
+  patch: { category?: CategoryKey; note?: string },
   sinceDate: string,
 ): number {
+  const assignments: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (patch.category) {
+    assignments.push('category = ?');
+    params.push(patch.category);
+  }
+  if (typeof patch.note === 'string' && patch.note.trim().length > 0) {
+    assignments.push('note = ?');
+    params.push(patch.note.trim().slice(0, 100));
+  }
+
+  if (assignments.length === 0) return 0;
+
+  assignments.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')");
+
   const result = getDb().runSync(
     `UPDATE transactions
-        SET category = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+        SET ${assignments.join(', ')}
       WHERE id = (
         SELECT id FROM transactions
          WHERE amount_cents = ? AND direction = 'expense' AND date >= ?
          ORDER BY id DESC LIMIT 1
       );`,
-    [category, amountCents, sinceDate],
+    [...params, amountCents, sinceDate],
   );
+
   return Number(result.changes ?? 0);
 }
 

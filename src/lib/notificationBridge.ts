@@ -67,7 +67,10 @@ export interface OverlayDebugState {
 export interface CategoryFix {
   id: string;
   amountFen: number;
+  /** 空串表示这次只改备注 */
   category: string;
+  /** 空串表示这次只改分类 */
+  note: string;
   at: number;
 }
 

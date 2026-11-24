@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { AppState, Platform, ToastAndroid } from 'react-native';
+import { AppState } from 'react-native';
 import { getCategoryLabel, type CategoryKey } from '../constants/categories';
 import { guessCategory } from './categoryGuess';
-import { createTransaction, updateRecentCategoryByAmount } from '../db/transactions';
+import { createTransaction, patchRecentByAmount } from '../db/transactions';
 import { toISODate } from './date';
 import {
   clearCategoryFixes,
@@ -71,23 +71,6 @@ function insertRecord(record: Partial<PendingAutoRecord>): InsertedInfo {
   return { amountCents, categoryLabel: getCategoryLabel(category) };
 }
 
-/** 入库后的即时反馈：系统级 toast，App 在后台也能看见 */
-function showBookkeepingToast(inserted: readonly InsertedInfo[]): void {
-  if (Platform.OS !== 'android' || inserted.length === 0) return;
-
-  try {
-    if (inserted.length === 1) {
-      const only = inserted[0];
-      const yuan = (only.amountCents / 100).toFixed(2);
-      ToastAndroid.show(`已记账 ¥${yuan} · ${only.categoryLabel}`, ToastAndroid.SHORT);
-    } else {
-      ToastAndroid.show(`已自动记账 ${inserted.length} 笔`, ToastAndroid.SHORT);
-    }
-  } catch {
-    // toast 失败不影响入库
-  }
-}
-
 let draining = false;
 
 /**
@@ -108,10 +91,7 @@ export async function drainPendingAutoRecords(): Promise<{ inserted: number; fai
     }
 
     await clearPendingAutoRecords();
-    if (insertedItems.length > 0) {
-      notifyDone();
-      showBookkeepingToast(insertedItems);
-    }
+    if (insertedItems.length > 0) notifyDone();
 
     return { inserted: insertedItems.length, failed: false };
   } catch (error) {
@@ -133,10 +113,15 @@ export async function applyCategoryFixes(): Promise<number> {
   for (const fix of fixes) {
     const amount = Math.trunc(Number(fix.amountFen));
     if (!Number.isSafeInteger(amount) || amount <= 0) continue;
+
+    const patch: { category?: CategoryKey; note?: string } = {};
+    if (fix.category) patch.category = fix.category as CategoryKey;
+    if (fix.note && fix.note.trim().length > 0) patch.note = fix.note.trim();
+
     try {
-      applied += updateRecentCategoryByAmount(amount, fix.category as CategoryKey, since);
+      applied += patchRecentByAmount(amount, patch, since);
     } catch (error) {
-      console.warn('[auto-bookkeeping] 应用分类修正失败', error);
+      console.warn('[auto-bookkeeping] 应用修正失败', error);
     }
   }
 

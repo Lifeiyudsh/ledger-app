@@ -21,7 +21,10 @@ internal object CategoryFixStore {
   data class Fix(
     val id: String,
     val amountFen: Long,
+    /** 空串表示这次只改备注，不动分类 */
     val category: String,
+    /** 空串表示这次只改分类，不动备注 */
+    val note: String,
     val at: Long
   )
 
@@ -38,6 +41,7 @@ internal object CategoryFixStore {
             put("id", fix.id)
             put("amountFen", fix.amountFen)
             put("category", fix.category)
+            put("note", fix.note)
             put("at", fix.at)
           }
         )
@@ -67,6 +71,7 @@ internal object CategoryFixStore {
             id = item.optString("id"),
             amountFen = item.optLong("amountFen"),
             category = item.optString("category"),
+            note = item.optString("note"),
             at = item.optLong("at")
           )
         }
