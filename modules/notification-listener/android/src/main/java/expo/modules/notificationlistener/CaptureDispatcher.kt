@@ -85,6 +85,15 @@ internal object CaptureDispatcher {
     Log.d("CaptureDispatch", "自动记账入队 amount=$amountFen queued=$queued")
 
     if (queued) {
+      // 立刻弹通知：JS 没在跑也能让用户当场看到，并直接选分类
+      CaptureNotifier.notify(
+        context = context,
+        captureId = entry.id,
+        amountFen = amountFen,
+        appName = appName,
+        note = note
+      )
+
       // 复用「气泡确认」事件：JS 收到就 drain 队列，不用再加一条事件通道
       NotificationBridge.emitOverlayConfirmed(
         mapOf(

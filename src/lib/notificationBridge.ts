@@ -63,6 +63,14 @@ export interface OverlayDebugState {
   listenerConnected: boolean;
 }
 
+/** 用户在通知栏里点的分类修正 */
+export interface CategoryFix {
+  id: string;
+  amountFen: number;
+  category: string;
+  at: number;
+}
+
 /** 原生持久化的通知日志条目（最近 50 条，含未命中） */
 export interface NotificationLogEntry {
   timestamp: number;
@@ -100,6 +108,8 @@ interface NotificationListenerNative {
   isAccessibilityEnabled(): boolean;
   openAccessibilitySettings(): boolean;
   hasSmsPermission(): boolean;
+  getCategoryFixes(): Promise<CategoryFix[]>;
+  clearCategoryFixes(): Promise<void>;
   isAutoBookkeeping(): boolean;
   setAutoBookkeeping(enabled: boolean): boolean;
   /** 原生返回 JSON 字符串，由 JS 自己 parse（避免依赖 expo 的字典转换） */
@@ -208,6 +218,23 @@ export function refreshListenerBinding(): boolean {
     return getNotificationListener()?.refreshBinding() ?? false;
   } catch {
     return false;
+  }
+}
+
+/** 读取通知里点过的分类修正（读完后要调 clear） */
+export async function getCategoryFixes(): Promise<CategoryFix[]> {
+  try {
+    return (await getNotificationListener()?.getCategoryFixes()) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function clearCategoryFixes(): Promise<void> {
+  try {
+    await getNotificationListener()?.clearCategoryFixes();
+  } catch {
+    // 忽略
   }
 }
 

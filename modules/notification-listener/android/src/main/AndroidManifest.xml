@@ -16,6 +16,9 @@
   <!-- 悬浮窗（显示在其他应用上层）。属于「特殊权限」，声明后仍需用户去系统设置里手动打开 -->
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+  <!-- 捕获后弹通知（Android 13+ 需要运行时授权） -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
   <!-- 银行动账短信（运行时权限，用户可在设置页开启） -->
   <uses-permission android:name="android.permission.RECEIVE_SMS" />
   <uses-permission android:name="android.permission.READ_SMS" />
@@ -48,6 +51,15 @@
         android:name="android.accessibilityservice"
         android:resource="@xml/notification_listener_accessibility_config" />
     </service>
+
+    <!-- 通知里的分类按钮 -->
+    <receiver
+      android:name="expo.modules.notificationlistener.CategoryFixReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="expo.modules.notificationlistener.CATEGORY_FIX" />
+      </intent-filter>
+    </receiver>
 
     <!--
       银行短信广播。android:permission 保证只有系统（广播发送方）能触发，

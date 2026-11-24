@@ -2,7 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  PermissionsAndroid,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   getNotificationListener,
@@ -261,12 +271,16 @@ export default function SettingsScreen() {
             }
             onPress={() => {
               const next = !autoBook;
+              if (next && Platform.OS === 'android') {
+                // 捕获后靠通知提示，Android 13+ 必须先拿到通知权限
+                void PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+              }
               if (setAutoBookkeeping(next)) {
                 setAutoBook(next);
                 Alert.alert(
                   next ? '已开启自动记账' : '已关闭自动记账',
                   next
-                    ? '之后抓到的消费会直接记进账本，分类靠关键词猜，记错了在列表里改。'
+                    ? '之后每抓到一笔会弹一条通知（带餐饮/交通/购物按钮），点一下就能改分类；不点也会入账，事后再改。'
                     : '之后抓到的消费会先弹提示，你点一下才入账。',
                 );
               }

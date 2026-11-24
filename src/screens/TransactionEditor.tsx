@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -73,6 +73,22 @@ export function TransactionEditor({ initial, preset }: Props) {
   });
   const [note, setNote] = useState(initial?.note ?? preset?.note ?? '');
   const [error, setError] = useState<string | null>(null);
+
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // edge-to-edge 下 adjustResize 不再自动压缩布局，这里手动给滚动区垫高
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const [saving, setSaving] = useState(false);
 
   const isoDate = toISODate(date);
@@ -149,8 +165,12 @@ export function TransactionEditor({ initial, preset }: Props) {
         keyboardVerticalOffset={0}
       >
         <ScrollView
+          ref={scrollRef}
           style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: spacing.xl * 3 + keyboardHeight },
+          ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
@@ -206,6 +226,9 @@ export function TransactionEditor({ initial, preset }: Props) {
             multiline
             textAlignVertical="top"
             accessibilityLabel="备注"
+            onFocus={() => {
+              setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 260);
+            }}
           />
 
           {error ? (

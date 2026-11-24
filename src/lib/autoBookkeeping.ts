@@ -1,11 +1,13 @@
 import { useEffect } from 'react';
 import { AppState, Platform, ToastAndroid } from 'react-native';
-import { getCategoryLabel } from '../constants/categories';
+import { getCategoryLabel, type CategoryKey } from '../constants/categories';
 import { guessCategory } from './categoryGuess';
-import { createTransaction } from '../db/transactions';
+import { createTransaction, updateRecentCategoryByAmount } from '../db/transactions';
 import { toISODate } from './date';
 import {
+  clearCategoryFixes,
   clearPendingAutoRecords,
+  getCategoryFixes,
   getPendingAutoRecords,
   subscribeOverlayConfirmed,
   type OverlayConfirmedPayload,
@@ -120,10 +122,33 @@ export async function drainPendingAutoRecords(): Promise<{ inserted: number; fai
   }
 }
 
+/** 通知栏点过的分类：把最近一笔同金额的记录改过去 */
+export async function applyCategoryFixes(): Promise<number> {
+  const fixes = await getCategoryFixes();
+  if (fixes.length === 0) return 0;
+
+  const since = toISODate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+  let applied = 0;
+
+  for (const fix of fixes) {
+    const amount = Math.trunc(Number(fix.amountFen));
+    if (!Number.isSafeInteger(amount) || amount <= 0) continue;
+    try {
+      applied += updateRecentCategoryByAmount(amount, fix.category as CategoryKey, since);
+    } catch (error) {
+      console.warn('[auto-bookkeeping] 应用分类修正失败', error);
+    }
+  }
+
+  await clearCategoryFixes();
+  if (applied > 0) notifyDone();
+  return applied;
+}
+
 /** 根组件挂一次：启动补录 + 监听气泡确认 + 回前台补录 */
 export function useAutoBookkeeping(): void {
   useEffect(() => {
-    void drainPendingAutoRecords();
+    void drainPendingAutoRecords().then(() => applyCategoryFixes());
 
     const unsubscribe = subscribeOverlayConfirmed((payload: OverlayConfirmedPayload) => {
       // 极端情况：原生队列写失败，数据跟着事件过来了，直接入库
@@ -135,11 +160,13 @@ export function useAutoBookkeeping(): void {
           console.warn('[auto-bookkeeping] 事件兜底入库失败', error);
         }
       }
-      void drainPendingAutoRecords();
+      void drainPendingAutoRecords().then(() => applyCategoryFixes());
     });
 
     const appStateSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void drainPendingAutoRecords();
+      if (state === 'active') {
+        void drainPendingAutoRecords().then(() => applyCategoryFixes());
+      }
     });
 
     return () => {

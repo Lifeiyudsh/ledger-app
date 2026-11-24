@@ -63,6 +63,28 @@ export function createTransaction(input: NewTransaction): number {
   return Number(result.lastInsertRowId);
 }
 
+/**
+ * 把「最近一笔同金额的记录」改成指定分类。
+ * 用于通知栏里直接点分类：那时 JS 可能刚入库，也可能还没入库，按金额+时间窗兜住。
+ */
+export function updateRecentCategoryByAmount(
+  amountCents: number,
+  category: CategoryKey,
+  sinceDate: string,
+): number {
+  const result = getDb().runSync(
+    `UPDATE transactions
+        SET category = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      WHERE id = (
+        SELECT id FROM transactions
+         WHERE amount_cents = ? AND direction = 'expense' AND date >= ?
+         ORDER BY id DESC LIMIT 1
+      );`,
+    [category, amountCents, sinceDate],
+  );
+  return Number(result.changes ?? 0);
+}
+
 /** 按 id 改一笔，返回是否命中记录 */
 export function updateTransaction(id: number, input: NewTransaction): boolean {
   assertValidEntry(input);

@@ -84,6 +84,32 @@ class NotificationListenerModule : Module() {
 
     // ---------- 读屏（无障碍） ----------
 
+    // ---------- 通知里点的分类修正 ----------
+
+    /** 读取「用户在通知里点的分类」，返回后由 JS 应用并清空 */
+    AsyncFunction("getCategoryFixes") { promise: Promise ->
+      val context = appContext.reactContext
+      if (context == null) {
+        promise.resolve(emptyList<Map<String, Any?>>())
+      } else {
+        promise.resolve(
+          CategoryFixStore.readAll(context).map {
+            mapOf(
+              "id" to it.id,
+              "amountFen" to it.amountFen,
+              "category" to it.category,
+              "at" to it.at.toDouble()
+            )
+          }
+        )
+      }
+    }
+
+    AsyncFunction("clearCategoryFixes") { promise: Promise ->
+      appContext.reactContext?.let { CategoryFixStore.clear(it) }
+      promise.resolve(null)
+    }
+
     // ---------- 自动记账（免确认） ----------
 
     Function("isAutoBookkeeping") {
