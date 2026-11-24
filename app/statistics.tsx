@@ -6,58 +6,76 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   type DimensionValue,
 } from 'react-native';
-import { PieChart } from 'react-native-gifted-charts';
+import { LineChart } from 'react-native-gifted-charts';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MonthSwitcher } from '../src/components/MonthSwitcher';
 import { getCategory } from '../src/constants/categories';
 import { getCategoryColor } from '../src/constants/categoryColors';
-import { listExpenseByCategory, type CategoryExpenseBucket } from '../src/db/transactions';
-import { currentMonthKey } from '../src/lib/date';
+import { listTransactionsByRange } from '../src/db/transactions';
 import { formatYuan } from '../src/lib/money';
-import { centsToYuanValue, formatPercent, toPercentValue } from '../src/lib/stats';
+import {
+  currentPeriod,
+  isCurrentPeriod,
+  periodLabel,
+  shiftPeriod,
+  type Period,
+  type PeriodKind,
+} from '../src/lib/period';
+import { buildCategoryRank, buildTrend, summarize } from '../src/lib/report';
+import { centsToYuanValue } from '../src/lib/stats';
 import { cardShadow, colors, radius, spacing } from '../src/theme';
+import type { Transaction } from '../src/types';
 
-const CHART_RADIUS = 108;
-const INNER_RADIUS = 66;
+const TABS: Array<{ kind: PeriodKind; label: string }> = [
+  { kind: 'week', label: '周' },
+  { kind: 'month', label: '月' },
+  { kind: 'year', label: '年' },
+];
 
 export default function StatisticsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
 
-  const [month, setMonth] = useState<string>(() => currentMonthKey());
-  const [buckets, setBuckets] = useState<CategoryExpenseBucket[]>([]);
+  const [period, setPeriod] = useState<Period>(() => currentPeriod('month'));
+  const [rows, setRows] = useState<Transaction[]>([]);
 
   const load = useCallback(() => {
-    setBuckets(listExpenseByCategory(month));
-  }, [month]);
+    setRows(listTransactionsByRange(period.start, period.end));
+  }, [period.start, period.end]);
 
-  // 切月 / 从编辑页返回都会重查
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load]),
   );
 
-  /** 总支出（整数「分」相加，不经过浮点） */
-  const totalCents = useMemo(
-    () => buckets.reduce((acc, bucket) => acc + bucket.totalCents, 0),
-    [buckets],
+  const summary = useMemo(() => summarize(rows, period), [rows, period]);
+  const trend = useMemo(() => buildTrend(rows, period), [rows, period]);
+  const rank = useMemo(() => buildCategoryRank(rows, 'expense'), [rows]);
+
+  const chartWidth = Math.max(width - spacing.lg * 4, 200);
+  const spacingX = trend.length > 1 ? Math.max((chartWidth - 16) / (trend.length - 1), 6) : chartWidth;
+
+  const chartData = useMemo(
+    () => trend.map((point) => ({ value: centsToYuanValue(point.expenseCents), label: point.label })),
+    [trend],
   );
 
-  /** 交给饼图的数据：仅此处把「分」除以 100 变成「元」 */
-  const pieData = useMemo(
-    () =>
-      buckets.map((bucket) => ({
-        value: centsToYuanValue(bucket.totalCents),
-        color: getCategoryColor(bucket.category),
-      })),
-    [buckets],
-  );
+  const maxY = useMemo(() => {
+    const peak = Math.max(...trend.map((point) => centsToYuanValue(point.expenseCents)), 0);
+    return peak > 0 ? Math.ceil(peak * 1.15) : 1;
+  }, [trend]);
 
-  const hasExpense = buckets.length > 0;
+  const canGoNext = !isCurrentPeriod(period);
+
+  const switchKind = (kind: PeriodKind) => {
+    if (kind === period.kind) return;
+    setPeriod(currentPeriod(kind));
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -72,102 +90,153 @@ export default function StatisticsScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle} accessibilityRole="header">
-          统计
+          报表
         </Text>
         <View style={styles.headerRight} />
       </View>
 
-      <MonthSwitcher month={month} onChange={setMonth} />
+      <View style={styles.tabs}>
+        {TABS.map((tab) => {
+          const active = tab.kind === period.kind;
+          return (
+            <Pressable
+              key={tab.kind}
+              onPress={() => switchKind(tab.kind)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              style={[styles.tab, active && styles.tabActive]}
+            >
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{tab.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
-      {hasExpense ? (
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}
-          showsVerticalScrollIndicator={false}
+      <View style={styles.periodBar}>
+        <Pressable
+          onPress={() => setPeriod((prev) => shiftPeriod(prev, -1))}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="上一个周期"
+          style={({ pressed }) => [styles.periodBtn, pressed && styles.periodBtnPressed]}
         >
-          <View style={[styles.card, cardShadow]}>
+          <Ionicons name="chevron-back" size={18} color={colors.sub} />
+        </Pressable>
+
+        <Text style={styles.periodLabel}>{periodLabel(period)}</Text>
+
+        <Pressable
+          onPress={() => canGoNext && setPeriod((prev) => shiftPeriod(prev, 1))}
+          disabled={!canGoNext}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="下一个周期"
+          style={({ pressed }) => [
+            styles.periodBtn,
+            pressed && styles.periodBtnPressed,
+            !canGoNext && styles.periodBtnDisabled,
+          ]}
+        >
+          <Ionicons name="chevron-forward" size={18} color={colors.sub} />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl + insets.bottom }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.card, cardShadow]}>
+          <Text style={styles.cardLabel}>总支出</Text>
+          <Text style={styles.totalValue}>{formatYuan(summary.expenseCents)}</Text>
+
+          <View style={styles.metrics}>
+            <Metric label="日均" value={formatYuan(summary.dailyAvgCents)} />
+            <Metric label="收入" value={formatYuan(summary.incomeCents)} />
+            <Metric label="笔数" value={`${summary.count}`} />
+          </View>
+        </View>
+
+        <View style={[styles.card, cardShadow]}>
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>支出趋势</Text>
+            <Text style={styles.cardHint}>{period.kind === 'year' ? '按月' : '按日'}</Text>
+          </View>
+
+          {summary.expenseCents === 0 ? (
+            <Text style={styles.empty}>这段时间没有支出</Text>
+          ) : (
             <View style={styles.chartWrap}>
-              <PieChart
-                key={month /* 切月强制重建，动画从头播一遍 */}
-                data={pieData}
-                donut
-                radius={CHART_RADIUS}
-                innerRadius={INNER_RADIUS}
-                strokeWidth={2}
-                strokeColor={colors.card}
-                isAnimated
-                animationDuration={550}
-                focusOnPress={false}
-                centerLabelComponent={() => (
-                  <View style={styles.centerLabel}>
-                    <Text style={styles.centerLabelTitle}>总支出</Text>
-                    <Text
-                      style={styles.centerLabelValue}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                    >
-                      {formatYuan(totalCents)}
-                    </Text>
-                  </View>
-                )}
+              <LineChart
+                key={`${period.kind}-${period.start}`}
+                data={chartData}
+                width={chartWidth}
+                height={140}
+                initialSpacing={8}
+                endSpacing={0}
+                spacing={spacingX}
+                thickness={2}
+                color={colors.expense}
+                curved
+                hideDataPoints
+                maxValue={maxY}
+                noOfSections={3}
+                yAxisLabelWidth={0}
+                yAxisThickness={0}
+                xAxisThickness={0}
+                xAxisLabelTextStyle={styles.axisLabel}
+                rulesColor={colors.border}
+                rulesType="dashed"
+                disableScroll
               />
             </View>
-          </View>
+          )}
+        </View>
 
-          <Text style={styles.sectionTitle}>分类明细</Text>
+        <View style={[styles.card, cardShadow]}>
+          <Text style={styles.cardTitle}>分类排行</Text>
 
-          <View style={[styles.card, cardShadow, styles.legendCard]}>
-            {buckets.map((bucket, index) => {
-              const category = getCategory(bucket.category);
-              const color = getCategoryColor(bucket.category);
-              const percent = toPercentValue(bucket.totalCents, totalCents);
+          {rank.length === 0 ? (
+            <Text style={styles.empty}>这段时间没有支出</Text>
+          ) : (
+            rank.map((item, index) => {
+              const category = getCategory(item.category);
+              const color = getCategoryColor(item.category);
+              const barWidth = `${Math.max(item.percent, 2)}%` as DimensionValue;
 
               return (
-                <View
-                  key={bucket.category}
-                  style={[styles.legendRow, index > 0 && styles.legendRowDivided]}
-                >
-                  <View style={[styles.legendIcon, { backgroundColor: `${color}1F` }]}>
-                    <Text style={styles.legendEmoji}>{category.emoji}</Text>
-                  </View>
-
-                  <View style={styles.legendMiddle}>
-                    <View style={styles.legendTitleRow}>
+                <View key={item.category} style={[styles.rankRow, index > 0 && styles.rankDivided]}>
+                  <View style={styles.rankHead}>
+                    <View style={styles.rankName}>
                       <View style={[styles.dot, { backgroundColor: color }]} />
-                      <Text style={styles.legendName} numberOfLines={1}>
-                        {category.label}
-                      </Text>
-                      <Text style={styles.legendCount}>{bucket.count} 笔</Text>
+                      <Text style={styles.rankLabel}>{category.label}</Text>
+                      <Text style={styles.rankCount}>{item.count} 笔</Text>
                     </View>
-                    <View style={styles.track}>
-                      <View
-                        style={[
-                          styles.trackFill,
-                          {
-                            width: `${Math.max(percent, 1)}%` as DimensionValue,
-                            backgroundColor: color,
-                          },
-                        ]}
-                      />
-                    </View>
+                    <Text style={styles.rankValue}>{formatYuan(item.totalCents)}</Text>
                   </View>
 
-                  <View style={styles.legendRight}>
-                    <Text style={styles.legendAmount}>{formatYuan(bucket.totalCents)}</Text>
-                    <Text style={styles.legendPercent}>{formatPercent(bucket.totalCents, totalCents)}</Text>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: barWidth, backgroundColor: color }]} />
                   </View>
+
+                  <Text style={styles.rankPercent}>{item.percent.toFixed(1)}%</Text>
                 </View>
               );
-            })}
-          </View>
-        </ScrollView>
-      ) : (
-        <View style={styles.empty}>
-          <Ionicons name="pie-chart-outline" size={34} color={colors.border} />
-          <Text style={styles.emptyTitle}>本月暂无支出</Text>
-          <Text style={styles.emptyHint}>换个月份看看，或先去记一笔支出</Text>
+            })
+          )}
         </View>
-      )}
+      </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metric}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -190,74 +259,87 @@ const styles = StyleSheet.create({
   backBtnPressed: { backgroundColor: colors.inputBg },
   headerTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
   headerRight: { width: 36 },
-
-  content: { paddingTop: spacing.md, gap: spacing.md },
+  tabs: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    backgroundColor: colors.inputBg,
+    borderRadius: radius.pill,
+    padding: 3,
+    gap: 2,
+    marginTop: spacing.xs,
+  },
+  tab: { paddingHorizontal: 22, paddingVertical: 6, borderRadius: radius.pill },
+  tabActive: { backgroundColor: colors.card, ...cardShadow },
+  tabText: { fontSize: 13, fontWeight: '600', color: colors.sub },
+  tabTextActive: { color: colors.text },
+  periodBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  periodBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  periodBtnPressed: { backgroundColor: colors.inputBg },
+  periodBtnDisabled: { opacity: 0.3 },
+  periodLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    minWidth: 120,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
+  content: { gap: spacing.md, paddingTop: spacing.xs },
   card: {
     marginHorizontal: spacing.lg,
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.lg,
   },
-  chartWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm },
-  centerLabel: { alignItems: 'center', justifyContent: 'center', width: INNER_RADIUS * 2 - 16 },
-  centerLabelTitle: { fontSize: 12, color: colors.sub },
-  centerLabelValue: {
-    fontSize: 18,
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardLabel: { fontSize: 12, color: colors.sub },
+  cardTitle: { fontSize: 14, fontWeight: '600', color: colors.text },
+  cardHint: { fontSize: 11, color: colors.sub },
+  totalValue: {
+    fontSize: 32,
     fontWeight: '700',
     color: colors.text,
-    fontVariant: ['tabular-nums'],
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
-
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.sub,
-    paddingHorizontal: spacing.xl,
-    marginTop: spacing.xs,
-  },
-  legendCard: { paddingVertical: spacing.xs, paddingHorizontal: 0 },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-  },
-  legendRowDivided: {
+  metrics: { flexDirection: 'row', marginTop: spacing.md, gap: spacing.md },
+  metric: { flex: 1, gap: 2 },
+  metricLabel: { fontSize: 11, color: colors.sub },
+  metricValue: { fontSize: 15, fontWeight: '600', color: colors.text, fontVariant: ['tabular-nums'] },
+  chartWrap: { marginTop: spacing.md, marginLeft: -4 },
+  axisLabel: { fontSize: 10, color: colors.sub },
+  empty: { fontSize: 12, color: colors.sub, marginTop: spacing.md },
+  rankRow: { paddingTop: spacing.md },
+  rankDivided: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
+    marginTop: spacing.md,
   },
-  legendIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  legendEmoji: { fontSize: 16 },
-  legendMiddle: { flex: 1, gap: 6 },
-  legendTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  legendName: { fontSize: 14, fontWeight: '600', color: colors.text, flexShrink: 1 },
-  legendCount: { fontSize: 11, color: colors.sub },
-  track: {
-    height: 4,
-    borderRadius: 2,
+  rankHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rankName: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  rankLabel: { fontSize: 13, fontWeight: '500', color: colors.text },
+  rankCount: { fontSize: 11, color: colors.sub },
+  rankValue: { fontSize: 13, fontWeight: '600', color: colors.text, fontVariant: ['tabular-nums'] },
+  barTrack: {
+    height: 6,
+    borderRadius: 3,
     backgroundColor: colors.inputBg,
+    marginTop: 6,
     overflow: 'hidden',
   },
-  trackFill: { height: 4, borderRadius: 2 },
-  legendRight: { alignItems: 'flex-end', gap: 2, minWidth: 84 },
-  legendAmount: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-    fontVariant: ['tabular-nums'],
-  },
-  legendPercent: { fontSize: 12, color: colors.sub, fontVariant: ['tabular-nums'] },
-
-  empty: { alignItems: 'center', paddingTop: 96, gap: spacing.sm, paddingHorizontal: spacing.xl },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
-  emptyHint: { fontSize: 13, color: colors.sub, textAlign: 'center' },
+  barFill: { height: 6, borderRadius: 3 },
+  rankPercent: { fontSize: 10, color: colors.sub, marginTop: 3 },
 });

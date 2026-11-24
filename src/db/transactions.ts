@@ -120,6 +120,27 @@ export function listTransactionsByMonth(
   return rows.map(toEntity);
 }
 
+/**
+ * 按日期区间查询（闭区间，`date BETWEEN start AND end`）。
+ * 报表页的周/月/年都用它，避免为每种周期各写一条 SQL。
+ */
+export function listTransactionsByRange(
+  startDate: string,
+  endDate: string,
+  options: { limit?: number } = {},
+): Transaction[] {
+  const limit = options.limit ?? 3000;
+  const rows = getDb().getAllSync<TransactionRow>(
+    `SELECT ${COLUMNS}
+       FROM transactions
+      WHERE date >= ? AND date <= ?
+      ORDER BY date ASC, id ASC
+      LIMIT ?;`,
+    [startDate, endDate, limit],
+  );
+  return rows.map(toEntity);
+}
+
 /** 导出用：只取指定月份，按时间正序（CSV 阅读习惯） */
 export function listTransactionsForExport(month: string): Transaction[] {
   const { start, end } = monthRange(month);
