@@ -38,4 +38,18 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX IF NOT EXISTS idx_transactions_date
     ON transactions (date DESC, id DESC);
   `,
+
+  // ---------- v2：账单导入去重表 ----------
+  // 只存「导入过哪些账单」的指纹，用来防止同一份账单重复导两次。
+  // 删除这笔交易不会顺带删指纹（用户明确要求「导入历史账单」，删了记录不代表要重新导）。
+  `
+  CREATE TABLE IF NOT EXISTS imported_bills (
+    fingerprint TEXT PRIMARY KEY,
+    source      TEXT NOT NULL,
+    imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_imported_bills_at
+    ON imported_bills (imported_at DESC);
+  `,
 ];

@@ -420,6 +420,12 @@ export default function ListScreen() {
         onClose={() => setMenuVisible(false)}
         items={[
           {
+            key: 'import',
+            label: '账单导入',
+            hint: '支付宝/微信账单一次导进来',
+            onPress: () => router.push('/import'),
+          },
+          {
             key: 'csv',
             label: `导出 ${formatMonthLabel(month)} CSV`,
             hint: '只包含当前月份的账单',
