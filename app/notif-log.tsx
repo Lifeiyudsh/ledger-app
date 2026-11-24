@@ -14,14 +14,18 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatYuan } from '../src/lib/money';
 import {
+  canDrawOverlays,
   clearNotificationLogs,
   getNotificationListener,
   getNotificationLogs,
+  getOverlayDebugState,
+  hasSmsPermission,
   isAccessibilityEnabled,
   isNotificationPermissionGranted,
   openAccessibilitySettings,
   openNotificationListenerSettings,
   type NotificationLogEntry,
+  type OverlayDebugState,
 } from '../src/lib/notificationBridge';
 import { colors, radius, spacing } from '../src/theme';
 
@@ -34,11 +38,17 @@ export default function NotificationLogScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [listenerOk, setListenerOk] = useState(false);
   const [a11yOk, setA11yOk] = useState(false);
+  const [overlayOk, setOverlayOk] = useState(false);
+  const [smsOk, setSmsOk] = useState(false);
+  const [debug, setDebug] = useState<OverlayDebugState | null>(null);
   const hasModule = getNotificationListener() !== null;
 
   const load = useCallback(async () => {
     setListenerOk(isNotificationPermissionGranted());
     setA11yOk(isAccessibilityEnabled());
+    setOverlayOk(canDrawOverlays());
+    setSmsOk(hasSmsPermission());
+    setDebug(getOverlayDebugState());
     setLogs(await getNotificationLogs());
   }, []);
 
@@ -137,6 +147,43 @@ export default function NotificationLogScreen() {
               </Pressable>
             </View>
 
+            <View style={styles.checkCard}>
+              <View style={styles.checkHead}>
+                <Text style={styles.checkTitle}>自检</Text>
+                <Pressable
+                  onPress={() => {
+                    const lines = [
+                      `模块：${hasModule ? '正常' : '缺失'}`,
+                      `通知使用权：${listenerOk ? '有' : '没有'}`,
+                      `监听服务：${debug?.listenerConnected ? '已连接' : '未连接'}`,
+                      `读屏：${a11yOk ? '已开启' : '未开启'}`,
+                      `悬浮窗：${overlayOk ? '有' : '没有'}`,
+                      `短信：${smsOk ? '有' : '没有'}`,
+                      `日志条数：${logs.length}`,
+                      `上次判定：${debug?.lastDecision ?? '-'}`,
+                      `最近通知原文：\n${debug?.lastNotificationText || '（无）'}`,
+                    ];
+                    void import('expo-clipboard').then((Clipboard) =>
+                      Clipboard.setStringAsync(`【自检】\n${lines.join('\n')}`),
+                    );
+                  }}
+                  hitSlop={8}
+                >
+                  <Text style={styles.copyAll}>复制</Text>
+                </Pressable>
+              </View>
+
+              <CheckRow label="通知使用权" ok={listenerOk} />
+              <CheckRow label="监听服务绑定" ok={Boolean(debug?.listenerConnected)} />
+              <CheckRow label="读屏（无障碍）" ok={a11yOk} />
+              <CheckRow label="悬浮窗" ok={overlayOk} />
+              <CheckRow label="短信" ok={smsOk} />
+
+              {debug?.lastDecision ? (
+                <Text style={styles.lastDecision}>上次判定：{debug.lastDecision}</Text>
+              ) : null}
+            </View>
+
             <Text style={styles.tip}>
               最近 {logs.length} 条，只记录和支付相关的通知（含未命中）。点卡片可复制原文。
             </Text>
@@ -221,6 +268,15 @@ export default function NotificationLogScreen() {
   );
 }
 
+function CheckRow({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <View style={styles.checkRow}>
+      <Text style={styles.checkLabel}>{label}</Text>
+      <Text style={[styles.checkValue, ok ? styles.ok : styles.bad]}>{ok ? '正常' : '未就绪'}</Text>
+    </View>
+  );
+}
+
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp);
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -256,6 +312,21 @@ const styles = StyleSheet.create({
   chipOff: { backgroundColor: colors.inputBg },
   chipText: { fontSize: 11, fontWeight: '600', color: colors.sub },
   chipTextOn: { color: colors.primary },
+  checkCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 6,
+  },
+  checkHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  checkTitle: { fontSize: 13, fontWeight: '600', color: colors.text },
+  copyAll: { fontSize: 12, color: colors.primary, fontWeight: '600' },
+  checkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  checkLabel: { fontSize: 12, color: colors.text },
+  checkValue: { fontSize: 12, fontWeight: '600' },
+  ok: { color: colors.income },
+  bad: { color: colors.expense },
+  lastDecision: { fontSize: 11, color: colors.sub, marginTop: 2, lineHeight: 16 },
   tip: { fontSize: 12, color: colors.sub, lineHeight: 18 },
   emptyActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   emptyBtn: {
