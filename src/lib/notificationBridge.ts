@@ -112,6 +112,7 @@ interface NotificationListenerNative {
   openAccessibilitySettings(): boolean;
   hasSmsPermission(): boolean;
   hasNotificationPermission(): boolean;
+  showTestOverlay(): Promise<boolean>;
   getCategoryFixes(): Promise<CategoryFix[]>;
   clearCategoryFixes(): Promise<void>;
   isAutoBookkeeping(): boolean;
@@ -257,6 +258,15 @@ export function isAutoBookkeeping(): boolean {
 export function setAutoBookkeeping(enabled: boolean): boolean {
   try {
     return getNotificationListener()?.setAutoBookkeeping(enabled) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** 弹一条测试用悬浮提示条，用来验证悬浮窗权限是否真的生效 */
+export async function showTestOverlay(): Promise<boolean> {
+  try {
+    return (await getNotificationListener()?.showTestOverlay()) ?? false;
   } catch {
     return false;
   }

@@ -18,6 +18,7 @@ import {
   canDrawOverlays,
   getNotificationListener,
   requestOverlayPermission,
+  showTestOverlay,
   getOverlayDebugState,
   ensureSmsPermission,
   hasNotificationPermission,
@@ -297,14 +298,25 @@ export default function SettingsScreen() {
             title="悬浮提示条"
             subtitle={
               overlayOk
-                ? '已开启 · 每次自动记账会在屏幕顶部盖一条，能直接点分类'
+                ? '已开启 · 荣耀/华为还需开「后台弹出界面」，否则只有进 App 才看得到'
                 : '未开启 · 只能靠通知，部分系统不会悬浮，要下拉才能看到'
             }
             onPress={() => {
               if (overlayOk) {
                 Alert.alert(
-                  '悬浮提示条已开启',
-                  '如需关闭，请到「设置 → 应用 → 记账工具 → 显示在其他应用上层」里关掉。',
+                  '悬浮提示条',
+                  '如果付款时看不到提示条，是荣耀/华为的「后台弹出界面」没开：\n\n设置 → 应用 → 应用管理 → 记账工具 → 权限 → 特殊访问权限 → 后台弹出界面 → 允许\n\n可以点下面的按钮立刻测试一次。',
+                  [
+                    { text: '关闭', style: 'cancel' },
+                    {
+                      text: '测试提示条',
+                      onPress: () => {
+                        void showTestOverlay().then((ok) => {
+                          if (!ok) Alert.alert('没能弹出', '悬浮窗权限可能没真正生效，请重新授权一次。');
+                        });
+                      },
+                    },
+                  ],
                 );
                 return;
               }

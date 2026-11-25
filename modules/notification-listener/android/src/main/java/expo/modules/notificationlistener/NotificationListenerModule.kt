@@ -98,6 +98,22 @@ class NotificationListenerModule : Module() {
       }
     }
 
+    /** 立刻弹一条测试用的悬浮提示条（验证悬浮窗权限是否真的生效） */
+    AsyncFunction("showTestOverlay") { promise: Promise ->
+      val context = appContext.reactContext
+      if (context == null || !QuickBarOverlay.isPermissionGranted(context)) {
+        promise.resolve(false)
+      } else {
+        try {
+          QuickBarOverlay.show(context, "test-${System.currentTimeMillis()}", 100L, "测试")
+          promise.resolve(true)
+        } catch (t: Throwable) {
+          Log.w(TAG, "测试提示条失败", t)
+          promise.resolve(false)
+        }
+      }
+    }
+
     // ---------- 通知里点的分类修正 ----------
 
     /** 读取「用户在通知里点的分类」，返回后由 JS 应用并清空 */
