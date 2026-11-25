@@ -98,6 +98,23 @@ class NotificationListenerModule : Module() {
       }
     }
 
+    /** 「付款时顶部提示」开关 */
+    Function("isOverlayAlert") {
+      val context = appContext.reactContext
+      if (context == null) true else OverlayAlertConfig.isEnabled(context)
+    }
+
+    Function("setOverlayAlert") { enabled: Boolean ->
+      val context = appContext.reactContext
+      if (context == null) {
+        false
+      } else {
+        OverlayAlertConfig.setEnabled(context, enabled)
+        if (enabled) CaptureForegroundService.start(context) else CaptureForegroundService.stop(context)
+        true
+      }
+    }
+
     /** 启动常驻前台服务（防止进程被系统冻结，悬浮条才能及时显示） */
     Function("startKeepAlive") {
       val context = appContext.reactContext

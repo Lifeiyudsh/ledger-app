@@ -17,6 +17,14 @@ class TransactionNotificationService : NotificationListenerService() {
   override fun onListenerConnected() {
     super.onListenerConnected()
     connected = true
+
+    if (OverlayAlertConfig.isEnabled(this)) {
+      try {
+        CaptureForegroundService.start(this)
+      } catch (t: Throwable) {
+        Log.w(TAG, "拉起常驻服务失败", t)
+      }
+    }
     Log.i(TAG, "通知监听已连接")
   }
 

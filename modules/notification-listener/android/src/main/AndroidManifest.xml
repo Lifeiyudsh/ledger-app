@@ -16,6 +16,9 @@
   <!-- 悬浮窗（显示在其他应用上层）。属于「特殊权限」，声明后仍需用户去系统设置里手动打开 -->
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+  <!-- 开机后自动拉起常驻服务，不用手动打开 App -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
   <!-- 常驻前台服务：防止后台进程被冻结，否则悬浮条和计时器都会失灵 -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -60,6 +63,17 @@
       android:name="expo.modules.notificationlistener.CaptureForegroundService"
       android:exported="false"
       android:foregroundServiceType="dataSync" />
+
+    <receiver
+      android:name="expo.modules.notificationlistener.BootReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+        <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
 
     <!-- 通知里的分类按钮 -->
     <receiver

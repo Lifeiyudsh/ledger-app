@@ -29,6 +29,14 @@ class CaptureForegroundService : Service() {
     private const val CHANNEL_ID = "keep_alive"
     private const val NOTIFICATION_ID = 7200
 
+    fun stop(context: Context) {
+      try {
+        context.stopService(Intent(context, CaptureForegroundService::class.java))
+      } catch (t: Throwable) {
+        Log.w(TAG, "停止前台服务失败", t)
+      }
+    }
+
     fun start(context: Context) {
       try {
         ContextCompat.startForegroundService(

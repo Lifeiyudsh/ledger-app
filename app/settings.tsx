@@ -19,6 +19,8 @@ import {
   getNotificationListener,
   requestOverlayPermission,
   showTestOverlay,
+  isOverlayAlert,
+  setOverlayAlert,
   getOverlayDebugState,
   ensureSmsPermission,
   hasNotificationPermission,
@@ -56,6 +58,7 @@ export default function SettingsScreen() {
   const [importedCount, setImportedCount] = useState(0);
   const [notifyOk, setNotifyOk] = useState(false);
   const [overlayOk, setOverlayOk] = useState(false);
+  const [alertOn, setAlertOn] = useState(true);
 
   const refresh = useCallback(() => {
     setMonthCount(listTransactionsByMonth(month, { limit: 1000 }).length);
@@ -66,6 +69,7 @@ export default function SettingsScreen() {
     setImportedCount(countImportedBills());
     setNotifyOk(hasNotificationPermission());
     setOverlayOk(canDrawOverlays());
+    setAlertOn(isOverlayAlert());
   }, [month]);
 
   useFocusEffect(
@@ -295,39 +299,49 @@ export default function SettingsScreen() {
           />
           <Row
             icon="albums-outline"
-            title="悬浮提示条"
+            title="付款时顶部弹出提示"
             subtitle={
-              overlayOk
-                ? '已开启 · 建议在最近任务里给本应用「加锁」，防止后台被冻结'
-                : '未开启 · 只能靠通知，部分系统不会悬浮，要下拉才能看到'
+              alertOn
+                ? '已开启 · 付款后屏幕顶部浮出一条（会常驻一条静默通知，系统强制）'
+                : '已关闭 · 不常驻、不弹，只会进通知栏'
             }
             onPress={() => {
-              if (overlayOk) {
+              const next = !alertOn;
+              if (!next) {
                 Alert.alert(
-                  '悬浮提示条',
-                  '如果付款时看不到提示条，是荣耀/华为的「后台弹出界面」没开：\n\n设置 → 应用 → 应用管理 → 记账工具 → 权限 → 特殊访问权限 → 后台弹出界面 → 允许\n\n可以点下面的按钮立刻测试一次。',
+                  '关闭顶部提示？',
+                  '关闭后付款不会弹条，只能下拉通知栏看到「已记一笔」。常驻通知也会消失。',
                   [
-                    { text: '关闭', style: 'cancel' },
+                    { text: '取消', style: 'cancel' },
                     {
-                      text: '测试提示条',
+                      text: '关闭',
+                      style: 'destructive',
                       onPress: () => {
-                        void showTestOverlay().then((ok) => {
-                          if (!ok) Alert.alert('没能弹出', '悬浮窗权限可能没真正生效，请重新授权一次。');
-                        });
+                        setOverlayAlert(false);
+                        setAlertOn(false);
                       },
                     },
                   ],
                 );
                 return;
               }
-              const ok = requestOverlayPermission();
-              if (!ok) {
-                Alert.alert('打不开授权页', '请手动到「设置 → 应用 → 记账工具 → 显示在其他应用上层」里打开。');
-              } else {
-                Alert.alert('授权后回来', '在系统页面里打开「允许显示在其他应用上层」，再回到本页状态会自动刷新。');
+
+              if (!overlayOk) {
+                const ok = requestOverlayPermission();
+                Alert.alert(
+                  '先给悬浮窗权限',
+                  ok
+                    ? '在系统页面里打开「允许显示在其他应用上层」，回来再点一次这个开关。'
+                    : '请手动到「设置 → 应用 → 记账工具 → 显示在其他应用上层」打开。',
+                );
+                return;
               }
+
+              setOverlayAlert(true);
+              setAlertOn(true);
             }}
             disabled={!hasModule}
+            first
           />
           <Row
             icon="notifications-outline"

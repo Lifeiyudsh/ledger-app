@@ -114,6 +114,8 @@ interface NotificationListenerNative {
   hasNotificationPermission(): boolean;
   showTestOverlay(): Promise<boolean>;
   startKeepAlive(): boolean;
+  isOverlayAlert(): boolean;
+  setOverlayAlert(enabled: boolean): boolean;
   getCategoryFixes(): Promise<CategoryFix[]>;
   clearCategoryFixes(): Promise<void>;
   isAutoBookkeeping(): boolean;
@@ -259,6 +261,23 @@ export function isAutoBookkeeping(): boolean {
 export function setAutoBookkeeping(enabled: boolean): boolean {
   try {
     return getNotificationListener()?.setAutoBookkeeping(enabled) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** 「付款时顶部提示」开关（打开会常驻一条静默通知，这是系统强制要求） */
+export function isOverlayAlert(): boolean {
+  try {
+    return getNotificationListener()?.isOverlayAlert() ?? true;
+  } catch {
+    return true;
+  }
+}
+
+export function setOverlayAlert(enabled: boolean): boolean {
+  try {
+    return getNotificationListener()?.setOverlayAlert(enabled) ?? false;
   } catch {
     return false;
   }

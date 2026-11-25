@@ -25,6 +25,15 @@ internal object CaptureDispatcher {
     postedAt: Long,
     source: String
   ) {
+    // 开关打开时确保常驻服务在跑，否则后台被冻结会导致提示延迟
+    if (OverlayAlertConfig.isEnabled(context)) {
+      try {
+        CaptureForegroundService.start(context)
+      } catch (t: Throwable) {
+        Log.w(TAG, "拉起常驻服务失败", t)
+      }
+    }
+
     // 通知与读屏可能同时命中同一笔，这里拦掉
     if (!CaptureDeduper.shouldEmit(packageName, amountFen)) {
       Log.d(TAG, "重复捕获已忽略：$packageName $amountFen 分")
@@ -73,7 +82,7 @@ internal object CaptureDispatcher {
     if (queued) {
       // 优先用悬浮提示条（一定盖在当前页面上）；
       // 没有悬浮窗权限时退回通知（受系统横幅开关影响，可能只进通知栏）。
-      if (QuickBarOverlay.isPermissionGranted(context)) {
+      if (OverlayAlertConfig.isEnabled(context) && QuickBarOverlay.isPermissionGranted(context)) {
         QuickBarOverlay.show(context, entry.id, amountFen, appName)
       } else {
         CaptureNotifier.notify(
