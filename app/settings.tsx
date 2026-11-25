@@ -298,7 +298,7 @@ export default function SettingsScreen() {
             title="悬浮提示条"
             subtitle={
               overlayOk
-                ? '已开启 · 荣耀/华为还需开「后台弹出界面」，否则只有进 App 才看得到'
+                ? '已开启 · 建议在最近任务里给本应用「加锁」，防止后台被冻结'
                 : '未开启 · 只能靠通知，部分系统不会悬浮，要下拉才能看到'
             }
             onPress={() => {

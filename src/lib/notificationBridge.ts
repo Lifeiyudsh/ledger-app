@@ -113,6 +113,7 @@ interface NotificationListenerNative {
   hasSmsPermission(): boolean;
   hasNotificationPermission(): boolean;
   showTestOverlay(): Promise<boolean>;
+  startKeepAlive(): boolean;
   getCategoryFixes(): Promise<CategoryFix[]>;
   clearCategoryFixes(): Promise<void>;
   isAutoBookkeeping(): boolean;
@@ -258,6 +259,15 @@ export function isAutoBookkeeping(): boolean {
 export function setAutoBookkeeping(enabled: boolean): boolean {
   try {
     return getNotificationListener()?.setAutoBookkeeping(enabled) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** 启动常驻前台服务，避免后台进程被冻结（悬浮条/计时器才可靠） */
+export function startKeepAlive(): boolean {
+  try {
+    return getNotificationListener()?.startKeepAlive() ?? false;
   } catch {
     return false;
   }

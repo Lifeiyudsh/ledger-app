@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initDb } from '../src/db';
+import { startKeepAlive } from '../src/lib/notificationBridge';
 import { useAutoBookkeeping } from '../src/lib/autoBookkeeping';
 import { useNotificationCapture } from '../src/lib/notificationBridge';
 import { colors } from '../src/theme';
@@ -11,6 +12,8 @@ export default function RootLayout() {
   // 冷启动即建表/升级；数据库单例由 src/db 懒加载兜底，此处失败不会阻塞渲染
   useEffect(() => {
     initDb();
+    // 常驻前台服务：否则后台被冻结，悬浮条要等打开 App 才「补」出来
+    startKeepAlive();
   }, []);
 
   // 通知监听：把原生抛上来的捕获放进「待确认」槽（不落库）

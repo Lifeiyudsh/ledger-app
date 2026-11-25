@@ -16,6 +16,10 @@
   <!-- 悬浮窗（显示在其他应用上层）。属于「特殊权限」，声明后仍需用户去系统设置里手动打开 -->
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+  <!-- 常驻前台服务：防止后台进程被冻结，否则悬浮条和计时器都会失灵 -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
   <!-- 捕获后弹通知（Android 13+ 需要运行时授权） -->
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -51,6 +55,11 @@
         android:name="android.accessibilityservice"
         android:resource="@xml/notification_listener_accessibility_config" />
     </service>
+
+    <service
+      android:name="expo.modules.notificationlistener.CaptureForegroundService"
+      android:exported="false"
+      android:foregroundServiceType="dataSync" />
 
     <!-- 通知里的分类按钮 -->
     <receiver

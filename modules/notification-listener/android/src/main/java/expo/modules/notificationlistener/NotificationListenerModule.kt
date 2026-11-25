@@ -98,6 +98,17 @@ class NotificationListenerModule : Module() {
       }
     }
 
+    /** 启动常驻前台服务（防止进程被系统冻结，悬浮条才能及时显示） */
+    Function("startKeepAlive") {
+      val context = appContext.reactContext
+      if (context == null) {
+        false
+      } else {
+        CaptureForegroundService.start(context)
+        true
+      }
+    }
+
     /** 立刻弹一条测试用的悬浮提示条（验证悬浮窗权限是否真的生效） */
     AsyncFunction("showTestOverlay") { promise: Promise ->
       val context = appContext.reactContext
