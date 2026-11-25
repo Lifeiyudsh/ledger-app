@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write   # 失败时把报错写回仓库，方便无登录状态排查
 
 env:
   EXPO_NO_TELEMETRY: '1'
@@ -31,6 +31,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # CI 自己回写的报错提交不再触发构建，避免死循环
+    if: ${{ !contains(github.event.head_commit.message || '', '[skip ci]') }}
 
     steps:
       - name: Checkout
@@ -113,7 +115,10 @@ jobs:
       - name: Build release APK
         if: ${{ (github.event.inputs.variant || 'release') == 'release' }}
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --console=plain --stacktrace --max-workers=2 --build-cache -Pexpo.inlineModules.watchedDirectories='[]'
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon --console=plain --stacktrace --max-workers=2 --build-cache -Pexpo.inlineModules.watchedDirectories='[]' 2>&1 | tee ../build.log
 
       - name: Build debug APK (dev client)
         if: ${{ github.event.inputs.variant == 'debug' }}
@@ -121,6 +126,30 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --console=plain --stacktrace --max-workers=2 --build-cache -Pexpo.inlineModules.watchedDirectories='[]'
 
       # 失败时把 Gradle 报告一起传上去，方便直接发给开发者定位
+      - name: Publish build error to repo
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "# 构建失败（$(date -u +%Y-%m-%dT%H:%M:%SZ)）"
+            echo ""
+            echo "commit: ${{ github.sha }}"
+            echo ""
+            echo '```'
+            grep -nE "^e: file://|^e: |error: |Unresolved reference|Caused by:" build.log \
+              | sed 's#/home/runner/work/ledger-app/ledger-app/##' \
+              | head -60 || echo "(build.log 里没匹配到，见下方结尾)"
+            echo ""
+            echo "--- 最后 40 行 ---"
+            tail -40 build.log
+            echo '```'
+          } > ci-error.md
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add -f ci-error.md
+          git commit -m "ci: 构建失败报告 [skip ci]" || exit 0
+          git push || true
+
       - name: Upload build reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
