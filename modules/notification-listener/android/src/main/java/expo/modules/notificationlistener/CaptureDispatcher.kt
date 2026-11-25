@@ -31,26 +31,12 @@ internal object CaptureDispatcher {
       return
     }
 
-    // 免确认模式：直接进补录队列，JS 一有机会就入库，用户不用点任何东西
-    if (AutoBookkeepingConfig.isEnabled(context)) {
-      queueAutoRecord(context, amountFen, direction, combined, title, packageName, appName, postedAt)
-      OverlayDebugState.recordDecision("自动记账（免确认，$source）", null, true, combined)
-      return
-    }
+    // 只有一条路径：入队 → 立即可入库 + 弹通知（通知上能改分类/写备注）。
+    // 不再分「免确认 / 待确认」两套，避免关掉开关后体验完全变样。
+    Log.d(TAG, "[$source] 命中 amount=${amountFen}fen")
+    OverlayDebugState.recordDecision("自动入账（$source）", null, null, combined)
 
-    // 没了悬浮窗之后只剩一条路：发事件给 JS，由应用内横幅做「待确认」。
-    // 「免确认」开关打开时走上面的队列分支，这里根本不会执行到。
-    val check = ForegroundTracker.check(context)
-    Log.d(TAG, "[$source] 命中 amount=${amountFen}fen 前台=${check.foreground}")
-
-    OverlayDebugState.recordDecision(
-      if (check.foreground) "走应用内横幅（前台，$source）" else "走应用内横幅（后台无气泡模式，$source）",
-      check,
-      null,
-      combined
-    )
-
-    emit(amountFen, direction, keyword, combined, title, packageName, appName, postedAt, source)
+    queueAutoRecord(context, amountFen, direction, combined, title, packageName, appName, postedAt)
   }
 
   /**
@@ -102,36 +88,9 @@ internal object CaptureDispatcher {
         )
       )
     } else {
-      // 队列写失败就退回横幅，至少不丢
-      emit(amountFen, direction, "", combined, title, packageName, appName, postedAt, "auto-fallback")
+      // 队列写失败（极端情况）：留日志便于排查，不再退回横幅（横幅已废弃）
+      Log.w("CaptureDispatch", "入队失败，这笔未入账 amount=$amountFen pkg=$packageName")
     }
   }
 
-  /** 应用内横幅通道（JS 收到后只做「待确认」，不会直接写库） */
-  private fun emit(
-    amountFen: Long,
-    direction: String,
-    keyword: String,
-    combined: String,
-    title: String,
-    packageName: String,
-    appName: String,
-    postedAt: Long,
-    source: String
-  ) {
-    NotificationBridge.emit(
-      mapOf(
-        "amount" to amountFen / 100.0,
-        "amountFen" to amountFen,
-        "type" to direction,
-        "keyword" to keyword,
-        "rawText" to combined,
-        "title" to title,
-        "packageName" to packageName,
-        "appName" to appName,
-        "postedAt" to postedAt.toDouble(),
-        "source" to source
-      )
-    )
-  }
 }

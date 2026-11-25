@@ -18,9 +18,8 @@ import {
   getNotificationListener,
   getOverlayDebugState,
   ensureSmsPermission,
+  hasNotificationPermission,
   hasSmsPermission,
-  isAutoBookkeeping,
-  setAutoBookkeeping,
   isAccessibilityEnabled,
   isNotificationPermissionGranted,
   openAccessibilitySettings,
@@ -52,7 +51,7 @@ export default function SettingsScreen() {
   const [a11yEnabled, setA11yEnabled] = useState(false);
   const [smsGranted, setSmsGranted] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
-  const [autoBook, setAutoBook] = useState(false);
+  const [notifyOk, setNotifyOk] = useState(false);
 
   const refresh = useCallback(() => {
     setMonthCount(listTransactionsByMonth(month, { limit: 1000 }).length);
@@ -61,7 +60,7 @@ export default function SettingsScreen() {
     setA11yEnabled(isAccessibilityEnabled());
     setSmsGranted(hasSmsPermission());
     setImportedCount(countImportedBills());
-    setAutoBook(isAutoBookkeeping());
+    setNotifyOk(hasNotificationPermission());
   }, [month]);
 
   useFocusEffect(
@@ -154,7 +153,7 @@ export default function SettingsScreen() {
     const lines = [
       `通知监听服务：${state.listenerConnected ? '已连接' : '未连接'}`,
       `读屏：${isAccessibilityEnabled() ? '已开启' : '未开启'}`,
-      `免确认自动记账：${isAutoBookkeeping() ? '已开启' : '未开启'}`,
+      '自动记账：已启用（捕获即入账）',
       '',
       `上次判定：${state.lastDecision}`,
       `判定依据：${state.lastForegroundSource}`,
@@ -262,28 +261,29 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>自动记账</Text>
         <View style={[styles.card, cardShadow]}>
           <Row
-            icon="flash-outline"
-            title="自动记账（免确认）"
+            icon="notifications-circle-outline"
+            title="通知权限"
             subtitle={
-              autoBook
-                ? '已开启 · 抓到就直接入账，不用点任何东西'
-                : '未开启 · 抓到后弹气泡/横幅，点一下才入账'
+              notifyOk
+                ? '已允许 · 每次自动记账都会弹一条通知，可直接改分类/写备注'
+                : '未允许 · 没有它你收不到任何提示，通知会被系统丢掉'
             }
+            danger={!notifyOk}
             onPress={() => {
-              const next = !autoBook;
-              if (next && Platform.OS === 'android') {
-                // 捕获后靠通知提示，Android 13+ 必须先拿到通知权限
-                void PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-              }
-              if (setAutoBookkeeping(next)) {
-                setAutoBook(next);
-                Alert.alert(
-                  next ? '已开启自动记账' : '已关闭自动记账',
-                  next
-                    ? '之后每抓到一笔会弹一条通知（带餐饮/交通/购物按钮），点一下就能改分类；不点也会入账，事后再改。'
-                    : '之后抓到的消费会先弹提示，你点一下才入账。',
+              void (async () => {
+                if (Platform.OS !== 'android') return;
+                const granted = await PermissionsAndroid.request(
+                  PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
                 );
-              }
+                const ok = granted === PermissionsAndroid.RESULTS.GRANTED;
+                setNotifyOk(ok);
+                if (!ok) {
+                  Alert.alert(
+                    '还是没允许',
+                    '请到「设置 → 应用 → 记账工具 → 通知」里手动打开。',
+                  );
+                }
+              })();
             }}
             disabled={!hasModule}
             first

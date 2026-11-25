@@ -111,6 +111,7 @@ interface NotificationListenerNative {
   isAccessibilityEnabled(): boolean;
   openAccessibilitySettings(): boolean;
   hasSmsPermission(): boolean;
+  hasNotificationPermission(): boolean;
   getCategoryFixes(): Promise<CategoryFix[]>;
   clearCategoryFixes(): Promise<void>;
   isAutoBookkeeping(): boolean;
@@ -256,6 +257,15 @@ export function isAutoBookkeeping(): boolean {
 export function setAutoBookkeeping(enabled: boolean): boolean {
   try {
     return getNotificationListener()?.setAutoBookkeeping(enabled) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** 是否有通知权限（没有的话「已记一笔」通知会被系统静默丢弃） */
+export function hasNotificationPermission(): boolean {
+  try {
+    return getNotificationListener()?.hasNotificationPermission() ?? false;
   } catch {
     return false;
   }

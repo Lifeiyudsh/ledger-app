@@ -21,6 +21,9 @@ internal object CaptureNotifier {
   private const val CHANNEL_ID = "capture_quick"
   private const val NOTIFICATION_ID_BASE = 7300
 
+  /** 「没权限发通知」的日志节流，避免刷屏 */
+  private var lastWarnAt: Long = 0L
+
   private val QUICK_CATEGORIES = listOf(
     Triple("food", "餐饮", 1),
     Triple("transport", "交通", 2),
@@ -32,7 +35,10 @@ internal object CaptureNotifier {
       ensureChannel(context)
 
       val manager = NotificationManagerCompat.from(context)
-      if (!manager.areNotificationsEnabled()) return
+      if (!manager.areNotificationsEnabled()) {
+        logNoPermission(context, amountFen)
+        return
+      }
 
       val yuan = String.format("%.2f", amountFen / 100.0)
       val title = "已记一笔 ¥$yuan"
@@ -105,6 +111,31 @@ internal object CaptureNotifier {
     } catch (t: Throwable) {
       // 通知失败不影响记账本身
     }
+  }
+
+  /** 没通知权限时写一条可见的日志：否则用户只会觉得「什么都没发生」 */
+  private fun logNoPermission(context: Context, amountFen: Long) {
+    val now = System.currentTimeMillis()
+    if (now - lastWarnAt < 10 * 60 * 1000L) return
+    lastWarnAt = now
+
+    DebugLogStore.append(
+      context,
+      DebugLogStore.Entry(
+        timestamp = now,
+        packageName = "self",
+        title = "通知没发出：缺少通知权限",
+        text = "已记账 ¥${String.format("%.2f", amountFen / 100.0)}，但系统不允许本应用发通知。" +
+          "请到「设置 → 应用 → 记账工具 → 通知」打开，或在应用内设置页授权。",
+        bigText = "",
+        subText = "",
+        tickerText = "",
+        extrasDump = "",
+        isMatch = false,
+        amountFen = amountFen,
+        matchedKeyword = "notification-permission"
+      )
+    )
   }
 
   private fun ensureChannel(context: Context) {

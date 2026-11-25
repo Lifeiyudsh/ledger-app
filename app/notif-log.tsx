@@ -24,6 +24,7 @@ import {
   openAccessibilitySettings,
   openNotificationListenerSettings,
   refreshListenerBinding,
+  hasNotificationPermission,
   type NotificationLogEntry,
   type OverlayDebugState,
 } from '../src/lib/notificationBridge';
@@ -40,6 +41,7 @@ export default function NotificationLogScreen() {
   const [a11yOk, setA11yOk] = useState(false);
   const [smsOk, setSmsOk] = useState(false);
   const [debug, setDebug] = useState<OverlayDebugState | null>(null);
+  const [notifyOk, setNotifyOk] = useState(false);
   const [fixing, setFixing] = useState(false);
   const hasModule = getNotificationListener() !== null;
 
@@ -49,6 +51,7 @@ export default function NotificationLogScreen() {
     setA11yOk(isAccessibilityEnabled());
     setSmsOk(hasSmsPermission());
     setDebug(getOverlayDebugState());
+    setNotifyOk(hasNotificationPermission());
     setLogs(await getNotificationLogs());
   }, []);
 
@@ -181,6 +184,7 @@ export default function NotificationLogScreen() {
                       `监听服务：${debug?.listenerConnected ? '已连接' : '未连接'}`,
                       `读屏：${a11yOk ? '已开启' : '未开启'}`,
                       `短信：${smsOk ? '有' : '没有'}`,
+                      `通知权限：${notifyOk ? '有' : '没有'}`,
                       `日志条数：${logs.length}`,
                       `上次判定：${debug?.lastDecision ?? '-'}`,
                       `最近通知原文：\n${debug?.lastNotificationText || '（无）'}`,
@@ -205,6 +209,7 @@ export default function NotificationLogScreen() {
               </CheckRow>
               <CheckRow label="读屏（无障碍）" ok={a11yOk} />
               <CheckRow label="短信" ok={smsOk} />
+              <CheckRow label="通知权限（弹提示用）" ok={notifyOk} />
 
               {!debug?.listenerConnected ? (
                 <Text style={styles.checkHint}>
