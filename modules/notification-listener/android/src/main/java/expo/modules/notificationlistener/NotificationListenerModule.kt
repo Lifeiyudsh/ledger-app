@@ -129,7 +129,7 @@ class NotificationListenerModule : Module() {
     /** 立刻弹一条测试用的悬浮提示条（验证悬浮窗权限是否真的生效） */
     AsyncFunction("showTestOverlay") { promise: Promise ->
       val context = appContext.reactContext
-      if (context == null || !QuickBarOverlay.isPermissionGranted(context)) {
+      if (context == null || !QuickBarOverlay.canShow(context)) {
         promise.resolve(false)
       } else {
         try {

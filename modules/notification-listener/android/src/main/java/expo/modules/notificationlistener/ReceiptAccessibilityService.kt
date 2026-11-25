@@ -85,6 +85,7 @@ class ReceiptAccessibilityService : AccessibilityService() {
   }
 
   override fun onDestroy() {
+    if (AccessibilityHolder.service === this) AccessibilityHolder.service = null
     try {
       pendingScan?.let { handler.removeCallbacks(it) }
     } catch (t: Throwable) {

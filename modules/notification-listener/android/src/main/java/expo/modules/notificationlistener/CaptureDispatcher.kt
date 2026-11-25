@@ -82,7 +82,7 @@ internal object CaptureDispatcher {
     if (queued) {
       // 优先用悬浮提示条（一定盖在当前页面上）；
       // 没有悬浮窗权限时退回通知（受系统横幅开关影响，可能只进通知栏）。
-      if (OverlayAlertConfig.isEnabled(context) && QuickBarOverlay.isPermissionGranted(context)) {
+      if (OverlayAlertConfig.isEnabled(context) && QuickBarOverlay.canShow(context)) {
         QuickBarOverlay.show(context, entry.id, amountFen, appName)
       } else {
         CaptureNotifier.notify(

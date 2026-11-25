@@ -50,19 +50,23 @@ internal object QuickBarOverlay {
     false
   }
 
+  /** 能不能弹：有普通悬浮窗权限，或者有可用的无障碍服务（无障碍层不需要悬浮窗权限） */
+  fun canShow(context: Context): Boolean =
+    AccessibilityHolder.service != null || isPermissionGranted(context)
+
   fun show(
     context: Context,
     captureId: String,
     amountFen: Long,
     appName: String
   ) {
-    if (!isPermissionGranted(context)) return
+    if (!canShow(context)) return
 
     onMain {
       try {
         removeNow(context)
 
-        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val windowManager = holderContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val density = context.resources.displayMetrics.density
 
         fun dp(value: Int): Int = (value * density).toInt()
@@ -118,12 +122,19 @@ internal object QuickBarOverlay {
         }
         card.addView(close)
 
-        val windowType = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        // 优先用无障碍覆盖层：支付保护会拦截普通悬浮窗，但没有拦无障碍层
+        val a11yService = AccessibilityHolder.service
+        val windowType = if (a11yService != null) {
+          WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+        } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
           WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
           @Suppress("DEPRECATION")
           WindowManager.LayoutParams.TYPE_PHONE
         }
+
+        // 无障碍层要用无障碍服务自己的 WindowManager
+        val holderContext = a11yService ?: context
 
         val params = WindowManager.LayoutParams(
           WindowManager.LayoutParams.WRAP_CONTENT,

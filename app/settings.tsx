@@ -302,7 +302,7 @@ export default function SettingsScreen() {
             title="付款时顶部弹出提示"
             subtitle={
               alertOn
-                ? '已开启 · 付款后屏幕顶部浮出一条（会常驻一条静默通知，系统强制）'
+                ? '已开启 · 付款后顶部浮出（支付界面被「支付保护」挡住时，退出支付页即显示）'
                 : '已关闭 · 不常驻、不弹，只会进通知栏'
             }
             onPress={() => {
