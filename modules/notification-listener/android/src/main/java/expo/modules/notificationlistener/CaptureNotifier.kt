@@ -8,7 +8,6 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.app.RemoteInput
 
 /**
  * 捕获到消费后立刻弹一条通知，带 3 个分类按钮。
@@ -18,7 +17,8 @@ import androidx.core.app.RemoteInput
  */
 internal object CaptureNotifier {
 
-  private const val CHANNEL_ID = "capture_quick"
+  private const val CHANNEL_ID = "capture_quick_v2"
+  private const val LEGACY_CHANNEL_ID = "capture_quick"
   private const val NOTIFICATION_ID_BASE = 7300
 
   /** 「没权限发通知」的日志节流，避免刷屏 */
@@ -47,22 +47,29 @@ internal object CaptureNotifier {
       val builder = NotificationCompat.Builder(context, CHANNEL_ID)
         .setSmallIcon(android.R.drawable.stat_notify_chat)
         .setContentTitle(title)
-        .setContentText("$body · 点下面按钮改分类")
-        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .setContentText("$body · 点按钮改分类，点通知写备注")
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setCategory(NotificationCompat.CATEGORY_REMINDER)
         .setAutoCancel(true)
         .setOnlyAlertOnce(true)
 
-      // 点通知主体 = 打开 App 看账单
-      launchIntent(context)?.let { intent ->
-        builder.setContentIntent(
-          PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-          )
-        )
+      // 点通知主体 = 直接进「写备注」页（一屏搞定，不用走完整 App 流程）
+      val noteIntent = Intent(
+        Intent.ACTION_VIEW,
+        android.net.Uri.parse("ledger://capture-note?amount=$amountFen&capture=$captureId")
+      ).apply {
+        setPackage(context.packageName)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       }
+
+      builder.setContentIntent(
+        PendingIntent.getActivity(
+          context,
+          0,
+          noteIntent,
+          PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+      )
 
       QUICK_CATEGORIES.forEach { (category, label, slot) ->
         val actionIntent = Intent(context, CategoryFixReceiver::class.java).apply {
@@ -81,31 +88,6 @@ internal object CaptureNotifier {
         )
         builder.addAction(0, label, pending)
       }
-
-      // 通知里直接输入备注（不用打开 App）
-      val replyIntent = Intent(context, CategoryFixReceiver::class.java).apply {
-        action = CategoryFixReceiver.ACTION_REPLY
-        putExtra(CategoryFixReceiver.EXTRA_ID, captureId)
-        putExtra(CategoryFixReceiver.EXTRA_AMOUNT, amountFen)
-      }
-
-      val remoteInput = RemoteInput.Builder(CategoryFixReceiver.EXTRA_REPLY_TEXT)
-        .setLabel("写备注，如：午餐")
-        .build()
-
-      val replyPending = PendingIntent.getBroadcast(
-        context,
-        99,
-        replyIntent,
-        PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-      )
-
-      builder.addAction(
-        NotificationCompat.Action.Builder(0, "写备注", replyPending)
-          .addRemoteInput(remoteInput)
-          .setAllowGeneratedReplies(true)
-          .build()
-      )
 
       manager.notify(NOTIFICATION_ID_BASE, builder.build())
     } catch (t: Throwable) {
@@ -144,9 +126,18 @@ internal object CaptureNotifier {
     val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
     if (manager.getNotificationChannel(CHANNEL_ID) != null) return
 
-    val channel = NotificationChannel(CHANNEL_ID, "自动记账", NotificationManager.IMPORTANCE_DEFAULT).apply {
-      description = "捕获到消费时提示一笔，可直接选分类"
-      enableVibration(false)
+    // 旧渠道（默认优先级，不会悬浮）直接删掉，避免设置里出现两个同名渠道
+    try {
+      manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+    } catch (t: Throwable) {
+      // 忽略
+    }
+
+    // IMPORTANCE_HIGH 才会以「悬浮通知」的形式盖在当前页面顶部，不用下拉通知栏
+    val channel = NotificationChannel(CHANNEL_ID, "自动记账", NotificationManager.IMPORTANCE_HIGH).apply {
+      description = "捕获到消费时在当前页面弹出提示，可直接选分类"
+      enableVibration(true)
+      setShowBadge(true)
     }
     manager.createNotificationChannel(channel)
   }
