@@ -52,6 +52,9 @@ class ReceiptAccessibilityService : AccessibilityService() {
   override fun onServiceConnected() {
     super.onServiceConnected()
     try {
+      // 注册自己，悬浮条才能用无障碍覆盖层（支付保护会拦普通悬浮窗）
+      AccessibilityHolder.service = this
+      if (OverlayAlertConfig.isEnabled(this)) CaptureForegroundService.start(this)
       Log.i(TAG, "读屏服务已连接")
     } catch (t: Throwable) {
       // 忽略
