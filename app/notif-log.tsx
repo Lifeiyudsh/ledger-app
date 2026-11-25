@@ -24,6 +24,7 @@ import {
   openAccessibilitySettings,
   openNotificationListenerSettings,
   refreshListenerBinding,
+  canDrawOverlays,
   hasNotificationPermission,
   type NotificationLogEntry,
   type OverlayDebugState,
@@ -42,6 +43,7 @@ export default function NotificationLogScreen() {
   const [smsOk, setSmsOk] = useState(false);
   const [debug, setDebug] = useState<OverlayDebugState | null>(null);
   const [notifyOk, setNotifyOk] = useState(false);
+  const [overlayOk, setOverlayOk] = useState(false);
   const [fixing, setFixing] = useState(false);
   const hasModule = getNotificationListener() !== null;
 
@@ -52,6 +54,7 @@ export default function NotificationLogScreen() {
     setSmsOk(hasSmsPermission());
     setDebug(getOverlayDebugState());
     setNotifyOk(hasNotificationPermission());
+    setOverlayOk(canDrawOverlays());
     setLogs(await getNotificationLogs());
   }, []);
 
@@ -210,6 +213,7 @@ export default function NotificationLogScreen() {
               <CheckRow label="读屏（无障碍）" ok={a11yOk} />
               <CheckRow label="短信" ok={smsOk} />
               <CheckRow label="通知权限（弹提示用）" ok={notifyOk} />
+              <CheckRow label="悬浮提示条" ok={overlayOk} />
 
               {!debug?.listenerConnected ? (
                 <Text style={styles.checkHint}>

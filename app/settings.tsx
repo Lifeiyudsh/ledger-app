@@ -15,7 +15,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  canDrawOverlays,
   getNotificationListener,
+  requestOverlayPermission,
   getOverlayDebugState,
   ensureSmsPermission,
   hasNotificationPermission,
@@ -52,6 +54,7 @@ export default function SettingsScreen() {
   const [smsGranted, setSmsGranted] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const [notifyOk, setNotifyOk] = useState(false);
+  const [overlayOk, setOverlayOk] = useState(false);
 
   const refresh = useCallback(() => {
     setMonthCount(listTransactionsByMonth(month, { limit: 1000 }).length);
@@ -61,6 +64,7 @@ export default function SettingsScreen() {
     setSmsGranted(hasSmsPermission());
     setImportedCount(countImportedBills());
     setNotifyOk(hasNotificationPermission());
+    setOverlayOk(canDrawOverlays());
   }, [month]);
 
   useFocusEffect(
@@ -287,6 +291,31 @@ export default function SettingsScreen() {
             }}
             disabled={!hasModule}
             first
+          />
+          <Row
+            icon="albums-outline"
+            title="悬浮提示条"
+            subtitle={
+              overlayOk
+                ? '已开启 · 每次自动记账会在屏幕顶部盖一条，能直接点分类'
+                : '未开启 · 只能靠通知，部分系统不会悬浮，要下拉才能看到'
+            }
+            onPress={() => {
+              if (overlayOk) {
+                Alert.alert(
+                  '悬浮提示条已开启',
+                  '如需关闭，请到「设置 → 应用 → 记账工具 → 显示在其他应用上层」里关掉。',
+                );
+                return;
+              }
+              const ok = requestOverlayPermission();
+              if (!ok) {
+                Alert.alert('打不开授权页', '请手动到「设置 → 应用 → 记账工具 → 显示在其他应用上层」里打开。');
+              } else {
+                Alert.alert('授权后回来', '在系统页面里打开「允许显示在其他应用上层」，再回到本页状态会自动刷新。');
+              }
+            }}
+            disabled={!hasModule}
           />
           <Row
             icon="notifications-outline"

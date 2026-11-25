@@ -71,14 +71,19 @@ internal object CaptureDispatcher {
     Log.d("CaptureDispatch", "自动记账入队 amount=$amountFen queued=$queued")
 
     if (queued) {
-      // 立刻弹通知：JS 没在跑也能让用户当场看到，并直接选分类
-      CaptureNotifier.notify(
-        context = context,
-        captureId = entry.id,
-        amountFen = amountFen,
-        appName = appName,
-        note = note
-      )
+      // 优先用悬浮提示条（一定盖在当前页面上）；
+      // 没有悬浮窗权限时退回通知（受系统横幅开关影响，可能只进通知栏）。
+      if (QuickBarOverlay.isPermissionGranted(context)) {
+        QuickBarOverlay.show(context, entry.id, amountFen, appName)
+      } else {
+        CaptureNotifier.notify(
+          context = context,
+          captureId = entry.id,
+          amountFen = amountFen,
+          appName = appName,
+          note = note
+        )
+      }
 
       // 复用「气泡确认」事件：JS 收到就 drain 队列，不用再加一条事件通道
       NotificationBridge.emitOverlayConfirmed(

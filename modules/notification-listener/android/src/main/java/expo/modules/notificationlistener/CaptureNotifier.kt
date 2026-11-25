@@ -47,12 +47,11 @@ internal object CaptureNotifier {
       val builder = NotificationCompat.Builder(context, CHANNEL_ID)
         .setSmallIcon(android.R.drawable.stat_notify_chat)
         .setContentTitle(title)
-        .setContentText("$body · 点按钮改分类，点通知写备注")
+        .setContentText("$body · 点按钮改分类")
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .setCategory(NotificationCompat.CATEGORY_REMINDER)
         .setAutoCancel(true)
-        .setOnlyAlertOnce(true)
-
+        
       // 点通知主体 = 直接进「写备注」页（一屏搞定，不用走完整 App 流程）
       val noteIntent = Intent(
         Intent.ACTION_VIEW,
