@@ -29,6 +29,11 @@ internal object QuickBarOverlay {
 
   private val handler = Handler(Looper.getMainLooper())
 
+  /** 已在主线程就直接跑，避免「post 后又 post」导致移除排队、条子一闪而过 */
+  private fun onMain(block: () -> Unit) {
+    if (Looper.myLooper() == Looper.getMainLooper()) block() else handler.post(block)
+  }
+
   private var currentView: View? = null
   private var currentParams: WindowManager.LayoutParams? = null
   private var hideTask: Runnable? = null
@@ -53,9 +58,9 @@ internal object QuickBarOverlay {
   ) {
     if (!isPermissionGranted(context)) return
 
-    handler.post {
+    onMain {
       try {
-        remove(context)
+        removeNow(context)
 
         val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val density = context.resources.displayMetrics.density
@@ -98,7 +103,7 @@ internal object QuickBarOverlay {
                   at = System.currentTimeMillis()
                 )
               )
-              remove(context)
+              removeNow(context)
             }
           }
           card.addView(button)
@@ -109,14 +114,21 @@ internal object QuickBarOverlay {
           setTextColor(Color.parseColor("#9AA0A6"))
           setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
           setPadding(dp(10), dp(6), dp(6), dp(6))
-          setOnClickListener { remove(context) }
+          setOnClickListener { removeNow(context) }
         }
         card.addView(close)
+
+        val windowType = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+          WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+          @Suppress("DEPRECATION")
+          WindowManager.LayoutParams.TYPE_PHONE
+        }
 
         val params = WindowManager.LayoutParams(
           WindowManager.LayoutParams.WRAP_CONTENT,
           WindowManager.LayoutParams.WRAP_CONTENT,
-          WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+          windowType,
           WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
           android.graphics.PixelFormat.TRANSLUCENT
@@ -129,29 +141,66 @@ internal object QuickBarOverlay {
         currentView = card
         currentParams = params
 
+        DebugLogStore.append(
+          context,
+          DebugLogStore.Entry(
+            timestamp = System.currentTimeMillis(),
+            packageName = "self",
+            title = "悬浮提示条已显示",
+            text = "¥${String.format("%.2f", amountFen / 100.0)} · $appName",
+            bigText = "",
+            subText = "",
+            tickerText = "",
+            extrasDump = "",
+            isMatch = true,
+            amountFen = amountFen,
+            matchedKeyword = "overlay"
+          )
+        )
+
         hideTask?.let { handler.removeCallbacks(it) }
-        val task = Runnable { remove(context) }
+        val task = Runnable { removeNow(context) }
         hideTask = task
         handler.postDelayed(task, AUTO_DISMISS_MS)
       } catch (t: Throwable) {
         Log.w(TAG, "显示提示条失败", t)
-        remove(context)
+        removeNow(context)
+
+        DebugLogStore.append(
+          context,
+          DebugLogStore.Entry(
+            timestamp = System.currentTimeMillis(),
+            packageName = "self",
+            title = "悬浮提示条显示失败",
+            text = (t.message ?: t.javaClass.simpleName).take(200),
+            bigText = "",
+            subText = "",
+            tickerText = "",
+            extrasDump = "",
+            isMatch = false,
+            amountFen = amountFen,
+            matchedKeyword = "overlay-error"
+          )
+        )
       }
     }
   }
 
   fun remove(context: Context) {
-    handler.post {
-      try {
-        val view = currentView ?: return@post
-        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        windowManager.removeView(view)
-      } catch (t: Throwable) {
-        Log.w(TAG, "移除提示条失败", t)
-      } finally {
-        currentView = null
-        currentParams = null
-      }
+    onMain { removeNow(context) }
+  }
+
+  /** 只能在主线程调用 */
+  private fun removeNow(context: Context) {
+    try {
+      val view = currentView ?: return
+      val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+      windowManager.removeView(view)
+    } catch (t: Throwable) {
+      Log.w(TAG, "移除提示条失败", t)
+    } finally {
+      currentView = null
+      currentParams = null
     }
   }
 }
