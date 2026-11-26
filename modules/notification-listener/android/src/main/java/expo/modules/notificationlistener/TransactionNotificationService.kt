@@ -39,6 +39,9 @@ class TransactionNotificationService : NotificationListenerService() {
     val notification = sbn.notification ?: return
     val packageName = sbn.packageName ?: return
 
+    // 自己发的通知（常驻服务提示等）直接忽略，否则日志里全是自己
+    if (packageName == applicationContext.packageName) return
+
     val extras = notification.extras
     val title = extras.readText(Notification.EXTRA_TITLE)
     val text = extras.readText(Notification.EXTRA_TEXT)

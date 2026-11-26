@@ -232,29 +232,6 @@ export default function SettingsScreen() {
             onPress={() => router.push(`/budget?month=${month}`)}
           />
           <Row
-            icon="refresh-outline"
-            title="重置导入记录"
-            subtitle={`已记 ${importedCount} 条指纹，重置后可重导`}
-            onPress={() => {
-              Alert.alert(
-                '重置导入记录？',
-                '只会清掉「哪些账单导入过」的记录，不动账本里的任何一笔。重置后可以重新导入同一份账单（会重复记账，注意）。',
-                [
-                  { text: '取消', style: 'cancel' },
-                  {
-                    text: '重置',
-                    style: 'destructive',
-                    onPress: () => {
-                      clearImportedBills();
-                      setImportedCount(0);
-                      Alert.alert('已重置', '现在可以重新导入账单了');
-                    },
-                  },
-                ],
-              );
-            }}
-          />
-          <Row
             icon="share-outline"
             title="导出本月 CSV"
             subtitle={`${formatMonthLabel(month)} · ${monthCount} 笔`}
@@ -359,21 +336,6 @@ export default function SettingsScreen() {
             first
           />
           <Row
-            icon="options-outline"
-            title="通知管理（所有应用）"
-            subtitle="用来批量关掉垃圾应用的通知"
-            onPress={() => {
-              const opened = openNotificationManagement();
-              if (!opened) {
-                Alert.alert(
-                  '没找到「通知管理」页面',
-                  '这台机型的设置页没有开放入口，已经在系统设置首页。\n\n手动路径：设置 → 通知和状态栏 → 通知管理。',
-                );
-              }
-            }}
-            disabled={!hasModule}
-          />
-          <Row
             icon="notifications-outline"
             title="通知使用权"
             subtitle={listenerGranted ? '已授权' : '未授权 · 点此去系统设置开启'}
@@ -429,6 +391,30 @@ export default function SettingsScreen() {
             }}
             disabled={!hasModule}
           />
+        </View>
+
+        <SectionHeader
+          title="高级 / 关于"
+          open={!collapsed.about}
+          onToggle={() => setCollapsed((prev) => ({ ...prev, about: !prev.about }))}
+        />
+        <View style={[styles.card, cardShadow, collapsed.about && styles.hidden]}>
+          <Row
+            icon="options-outline"
+            title="通知管理（所有应用）"
+            subtitle="用来批量关掉垃圾应用的通知"
+            onPress={() => {
+              const opened = openNotificationManagement();
+              if (!opened) {
+                Alert.alert(
+                  '没找到「通知管理」页面',
+                  '这台机型的设置页没有开放入口，已经在系统设置首页。\n\n手动路径：设置 → 通知和状态栏 → 通知管理。',
+                );
+              }
+            }}
+            disabled={!hasModule}
+            first
+          />
           <Row
             icon="pulse-outline"
             title="自检与诊断"
@@ -437,26 +423,41 @@ export default function SettingsScreen() {
             disabled={!hasModule}
           />
           <Row
+            icon="refresh-outline"
+            title="重置导入记录"
+            subtitle={`已记 ${importedCount} 条指纹，重置后可重导`}
+            onPress={() => {
+              Alert.alert(
+                '重置导入记录？',
+                '只清「哪些账单导入过」的记录，不动账本。重置后可重新导入同一份账单（会重复记账）。',
+                [
+                  { text: '取消', style: 'cancel' },
+                  {
+                    text: '重置',
+                    style: 'destructive',
+                    onPress: () => {
+                      clearImportedBills();
+                      setImportedCount(0);
+                      Alert.alert('已重置', '现在可以重新导入账单了');
+                    },
+                  },
+                ],
+              );
+            }}
+          />
+          <Row
             icon="list-outline"
             title="最近通知原文"
             subtitle="排查「为什么没识别」，可复制原文"
             onPress={() => router.push('/notif-log')}
             disabled={!hasModule}
           />
-        </View>
 
-        <SectionHeader
-          title="关于"
-          open={!collapsed.about}
-          onToggle={() => setCollapsed((prev) => ({ ...prev, about: !prev.about }))}
-        />
-        <View style={[styles.card, cardShadow, collapsed.about && styles.hidden]}>
           <Row
             icon="information-circle-outline"
             title="版本"
             subtitle={`${version} · 数据只存在本机`}
             onPress={() => Alert.alert('记账工具', `版本 ${version}\n所有数据保存在本机 SQLite，不上传任何服务器。`)}
-            first
           />
         </View>
 
