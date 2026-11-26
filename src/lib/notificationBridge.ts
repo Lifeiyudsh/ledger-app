@@ -118,7 +118,7 @@ interface NotificationListenerNative {
   startKeepAlive(): boolean;
   dismissOverlay(): boolean;
   setQuickCategories(json: string): boolean;
-  openAppNotificationSettings(): boolean;
+  openNotificationManagement(): boolean;
   isOverlayAlert(): boolean;
   setOverlayAlert(enabled: boolean): boolean;
   getCategoryFixes(): Promise<CategoryFix[]>;
@@ -297,10 +297,10 @@ export function startKeepAlive(): boolean {
   }
 }
 
-/** 打开本应用的通知设置（关渠道、看哪些通知在响） */
-export function openAppNotificationSettings(): boolean {
+/** 打开系统的「通知管理」总览（能批量关别的应用通知）；返回 false 表示退到了设置首页 */
+export function openNotificationManagement(): boolean {
   try {
-    return getNotificationListener()?.openAppNotificationSettings() ?? false;
+    return getNotificationListener()?.openNotificationManagement() ?? false;
   } catch {
     return false;
   }

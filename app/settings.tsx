@@ -19,7 +19,7 @@ import {
   getNotificationListener,
   requestOverlayPermission,
   showTestOverlay,
-  openAppNotificationSettings,
+  openNotificationManagement,
   isOverlayAlert,
   setOverlayAlert,
   getOverlayDebugState,
@@ -360,11 +360,16 @@ export default function SettingsScreen() {
           />
           <Row
             icon="options-outline"
-            title="通知设置（本应用）"
-            subtitle="关渠道、看哪些通知在响，都在这里"
+            title="通知管理（所有应用）"
+            subtitle="用来批量关掉垃圾应用的通知"
             onPress={() => {
-              const ok = openAppNotificationSettings();
-              if (!ok) Alert.alert('打不开', '请手动到「设置 → 应用 → 记账工具 → 通知」查看。');
+              const opened = openNotificationManagement();
+              if (!opened) {
+                Alert.alert(
+                  '没找到「通知管理」页面',
+                  '这台机型的设置页没有开放入口，已经在系统设置首页。\n\n手动路径：设置 → 通知和状态栏 → 通知管理。',
+                );
+              }
             }}
             disabled={!hasModule}
           />

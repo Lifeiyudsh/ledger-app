@@ -126,22 +126,18 @@ class NotificationListenerModule : Module() {
       }
     }
 
-    /** 打开本应用的通知设置页（关渠道、关闭静音都在这里） */
-    Function("openAppNotificationSettings") {
+    /**
+     * 打开系统的「通知管理」总览（能批量关别的应用的通知）。
+     *
+     * Android 没有这个页面，但各家 ROM 有私有实现，只能按组件名碰运气：
+     * 命中返回 true，全都不行就退到系统设置首页并返回 false。
+     */
+    Function("openNotificationManagement") {
       val context = appContext.reactContext
       if (context == null) {
         false
       } else {
-        try {
-          val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-          context.startActivity(intent)
-          true
-        } catch (t: Throwable) {
-          Log.w(TAG, "打开通知设置失败", t)
-          false
-        }
+        openNotificationManagement(context)
       }
     }
 
@@ -455,6 +451,59 @@ class NotificationListenerModule : Module() {
         Log.w(TAG, "回退到应用详情页也失败", e2)
         false
       }
+    }
+  }
+
+  /** 依次尝试各 ROM 的「通知管理」页面，返回是否跳到了目标页 */
+  private fun openNotificationManagement(context: Context): Boolean {
+    val candidates = listOf(
+      // 荣耀 / 华为 MagicOS
+      ComponentName(
+        "com.hihonor.android.settings",
+        "com.hihonor.android.settings.notification.NotificationSettingsActivity"
+      ),
+      ComponentName(
+        "com.hihonor.android.settings",
+        "com.hihonor.android.settings.Settings$NotificationSettingsActivity"
+      ),
+      ComponentName(
+        "com.huawei.android.settings",
+        "com.huawei.android.settings.notification.NotificationSettingsActivity"
+      ),
+      ComponentName(
+        "com.android.settings",
+        "com.android.settings.Settings$NotificationSettingsActivity"
+      ),
+      ComponentName(
+        "com.android.settings",
+        "com.android.settings.notification.NotificationSettingsActivity"
+      )
+    )
+
+    for (component in candidates) {
+      try {
+        val intent = Intent().apply {
+          this.component = component
+          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (context.packageManager.resolveActivity(intent, 0) != null) {
+          context.startActivity(intent)
+          return true
+        }
+      } catch (t: Throwable) {
+        Log.w(TAG, "尝试打开通知管理失败：$component", t)
+      }
+    }
+
+    // 兜底：系统设置首页（用户自己进「通知和状态栏」）
+    return try {
+      context.startActivity(
+        Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      )
+      false
+    } catch (t: Throwable) {
+      Log.w(TAG, "打开系统设置失败", t)
+      false
     }
   }
 
