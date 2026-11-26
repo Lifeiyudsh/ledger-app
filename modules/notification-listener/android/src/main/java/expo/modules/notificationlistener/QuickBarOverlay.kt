@@ -151,12 +151,14 @@ internal object QuickBarOverlay {
         currentView = card
         currentParams = params
 
+        val layerLabel = if (a11yService != null) "无障碍层" else "普通悬浮窗"
+
         DebugLogStore.append(
           context,
           DebugLogStore.Entry(
             timestamp = System.currentTimeMillis(),
             packageName = "self",
-            title = "悬浮提示条已显示",
+            title = "悬浮提示条已显示（$layerLabel）",
             text = "¥${String.format("%.2f", amountFen / 100.0)} · $appName",
             bigText = "",
             subText = "",
