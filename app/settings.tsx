@@ -259,6 +259,14 @@ export default function SettingsScreen() {
         />
         <View style={[styles.card, cardShadow, collapsed.auto && styles.hidden]}>
           <Row
+            icon="pulse-outline"
+            title="运行状态"
+            subtitle="哪一项不是「正常」，点它去解决"
+            onPress={() => router.push('/notif-log')}
+            disabled={!hasModule}
+            first
+          />
+          <Row
             icon="albums-outline"
             title="付款时顶部弹出提示"
             subtitle={
@@ -302,7 +310,6 @@ export default function SettingsScreen() {
               setAlertOn(true);
             }}
             disabled={!hasModule}
-            first
           />
           <Row
             icon="notifications-outline"
@@ -369,29 +376,6 @@ export default function SettingsScreen() {
         />
         <View style={[styles.card, cardShadow, collapsed.about && styles.hidden]}>
           <Row
-            icon="options-outline"
-            title="通知管理（所有应用）"
-            subtitle="用来批量关掉垃圾应用的通知"
-            onPress={() => {
-              const opened = openNotificationManagement();
-              if (!opened) {
-                Alert.alert(
-                  '没找到「通知管理」页面',
-                  '这台机型的设置页没有开放入口，已经在系统设置首页。\n\n手动路径：设置 → 通知和状态栏 → 通知管理。',
-                );
-              }
-            }}
-            disabled={!hasModule}
-            first
-          />
-          <Row
-            icon="pulse-outline"
-            title="自检与诊断"
-            subtitle="看服务是否真的在工作，可复制结果"
-            onPress={handleDiagnostics}
-            disabled={!hasModule}
-          />
-          <Row
             icon="refresh-outline"
             title="重置导入记录"
             subtitle={`已记 ${importedCount} 条指纹，重置后可重导`}
@@ -414,14 +398,6 @@ export default function SettingsScreen() {
               );
             }}
           />
-          <Row
-            icon="list-outline"
-            title="运行状态"
-            subtitle="看它有没有在正常工作"
-            onPress={() => router.push('/notif-log')}
-            disabled={!hasModule}
-          />
-
           <Row
             icon="information-circle-outline"
             title="版本"

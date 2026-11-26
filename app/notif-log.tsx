@@ -240,7 +240,7 @@ export default function NotificationLogScreen() {
 
             <View style={styles.checkCard}>
               <View style={styles.checkHead}>
-                <Text style={styles.checkTitle}>自检</Text>
+                <Text style={styles.checkTitle}>自查</Text>
                 <Pressable
                   onPress={() => {
                     const lines = [
@@ -263,6 +263,10 @@ export default function NotificationLogScreen() {
                   <Text style={styles.copyAll}>复制</Text>
                 </Pressable>
               </View>
+
+              <Text style={styles.checkGuide}>
+                下面哪一行不是「正常」，就点它去解决；全部正常但没记账，就付一笔试试。
+              </Text>
 
               <CheckRow
                 label="通知使用权"
@@ -512,6 +516,7 @@ const styles = StyleSheet.create({
   copyAll: { fontSize: 12, color: colors.primary, fontWeight: '600' },
   checkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   checkLabel: { fontSize: 12, color: colors.text },
+  checkGuide: { fontSize: 11, lineHeight: 17, color: colors.sub, marginBottom: 2 },
   checkValue: { fontSize: 12, fontWeight: '600' },
   ok: { color: colors.income },
   bad: { color: colors.expense },
