@@ -10,7 +10,7 @@ import {
   View,
   type DimensionValue,
 } from 'react-native';
-import { LineChart } from 'react-native-gifted-charts';
+import { PieChart } from 'react-native-gifted-charts';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCategory } from '../src/constants/categories';
 import { getCategoryColor } from '../src/constants/categoryColors';
@@ -24,7 +24,7 @@ import {
   type Period,
   type PeriodKind,
 } from '../src/lib/period';
-import { buildCategoryRank, buildTrend, summarize } from '../src/lib/report';
+import { buildCategoryRank, summarize } from '../src/lib/report';
 import { centsToYuanValue } from '../src/lib/stats';
 import { cardShadow, colors, radius, spacing } from '../src/theme';
 import type { Transaction } from '../src/types';
@@ -54,21 +54,20 @@ export default function StatisticsScreen() {
   );
 
   const summary = useMemo(() => summarize(rows, period), [rows, period]);
-  const trend = useMemo(() => buildTrend(rows, period), [rows, period]);
   const rank = useMemo(() => buildCategoryRank(rows, 'expense'), [rows]);
 
-  const chartWidth = Math.max(width - spacing.lg * 4, 200);
-  const spacingX = trend.length > 1 ? Math.max((chartWidth - 16) / (trend.length - 1), 6) : chartWidth;
+  /** 饼图半径随屏幕宽度收缩，窄屏也不会溢出 */
+  const chartRadius = Math.min(112, Math.max(84, Math.round((width - spacing.lg * 6) / 2)));
 
-  const chartData = useMemo(
-    () => trend.map((point) => ({ value: centsToYuanValue(point.expenseCents), label: point.label })),
-    [trend],
+  /** 交给饼图的数据：只在这里把「分」换成「元」 */
+  const pieData = useMemo(
+    () =>
+      rank.map((item) => ({
+        value: centsToYuanValue(item.totalCents),
+        color: getCategoryColor(item.category),
+      })),
+    [rank],
   );
-
-  const maxY = useMemo(() => {
-    const peak = Math.max(...trend.map((point) => centsToYuanValue(point.expenseCents)), 0);
-    return peak > 0 ? Math.ceil(peak * 1.15) : 1;
-  }, [trend]);
 
   const canGoNext = !isCurrentPeriod(period);
 
@@ -157,36 +156,31 @@ export default function StatisticsScreen() {
         </View>
 
         <View style={[styles.card, cardShadow]}>
-          <View style={styles.cardHead}>
-            <Text style={styles.cardTitle}>支出趋势</Text>
-            <Text style={styles.cardHint}>{period.kind === 'year' ? '按月' : '按日'}</Text>
-          </View>
+          <Text style={styles.cardTitle}>支出分布</Text>
 
-          {summary.expenseCents === 0 ? (
+          {rank.length === 0 ? (
             <Text style={styles.empty}>这段时间没有支出</Text>
           ) : (
             <View style={styles.chartWrap}>
-              <LineChart
+              <PieChart
                 key={`${period.kind}-${period.start}`}
-                data={chartData}
-                width={chartWidth}
-                height={140}
-                initialSpacing={8}
-                endSpacing={0}
-                spacing={spacingX}
-                thickness={2}
-                color={colors.expense}
-                curved
-                hideDataPoints
-                maxValue={maxY}
-                noOfSections={3}
-                yAxisLabelWidth={0}
-                yAxisThickness={0}
-                xAxisThickness={0}
-                xAxisLabelTextStyle={styles.axisLabel}
-                rulesColor={colors.border}
-                rulesType="dashed"
-                disableScroll
+                data={pieData}
+                donut
+                radius={chartRadius}
+                innerRadius={Math.round(chartRadius * 0.62)}
+                strokeWidth={2}
+                strokeColor={colors.card}
+                isAnimated
+                animationDuration={550}
+                focusOnPress={false}
+                centerLabelComponent={() => (
+                  <View style={styles.centerLabel}>
+                    <Text style={styles.centerTitle}>总支出</Text>
+                    <Text style={styles.centerValue} numberOfLines={1} adjustsFontSizeToFit>
+                      {formatYuan(summary.expenseCents)}
+                    </Text>
+                  </View>
+                )}
               />
             </View>
           )}
@@ -334,8 +328,10 @@ const styles = StyleSheet.create({
   metric: { flex: 1, gap: 2 },
   metricLabel: { fontSize: 11, color: colors.sub },
   metricValue: { fontSize: 15, fontWeight: '600', color: colors.text, fontVariant: ['tabular-nums'] },
-  chartWrap: { marginTop: spacing.md, marginLeft: -4 },
-  axisLabel: { fontSize: 10, color: colors.sub },
+  chartWrap: { alignItems: 'center', marginTop: spacing.md },
+  centerLabel: { alignItems: 'center' },
+  centerTitle: { fontSize: 11, color: colors.sub },
+  centerValue: { fontSize: 18, fontWeight: '700', color: colors.text, maxWidth: 96 },
   empty: { fontSize: 12, color: colors.sub, marginTop: spacing.md },
   rankRow: { paddingTop: spacing.md },
   rankPressed: { opacity: 0.6 },
