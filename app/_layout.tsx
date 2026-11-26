@@ -1,9 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initDb } from '../src/db';
-import { startKeepAlive } from '../src/lib/notificationBridge';
+import { dismissOverlay, startKeepAlive } from '../src/lib/notificationBridge';
 import { useAutoBookkeeping } from '../src/lib/autoBookkeeping';
 import { useNotificationCapture } from '../src/lib/notificationBridge';
 import { colors } from '../src/theme';
@@ -14,6 +15,12 @@ export default function RootLayout() {
     initDb();
     // 常驻前台服务：否则后台被冻结，悬浮条要等打开 App 才「补」出来
     startKeepAlive();
+
+    // 后台计时器可能被冻结，导致悬浮条赖着不走；回到前台就清掉残留
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') dismissOverlay();
+    });
+    return () => sub.remove();
   }, []);
 
   // 通知监听：把原生抛上来的捕获放进「待确认」槽（不落库）

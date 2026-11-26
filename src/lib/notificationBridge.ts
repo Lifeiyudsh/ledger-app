@@ -114,6 +114,7 @@ interface NotificationListenerNative {
   hasNotificationPermission(): boolean;
   showTestOverlay(): Promise<boolean>;
   startKeepAlive(): boolean;
+  dismissOverlay(): boolean;
   isOverlayAlert(): boolean;
   setOverlayAlert(enabled: boolean): boolean;
   getCategoryFixes(): Promise<CategoryFix[]>;
@@ -289,6 +290,15 @@ export function startKeepAlive(): boolean {
     return getNotificationListener()?.startKeepAlive() ?? false;
   } catch {
     return false;
+  }
+}
+
+/** 清掉残留的悬浮提示条（后台计时器被冻结时它不会自动消失） */
+export function dismissOverlay(): void {
+  try {
+    getNotificationListener()?.dismissOverlay();
+  } catch {
+    // 忽略
   }
 }
 

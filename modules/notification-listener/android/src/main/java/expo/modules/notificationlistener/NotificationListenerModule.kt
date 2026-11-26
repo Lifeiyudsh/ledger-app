@@ -126,6 +126,17 @@ class NotificationListenerModule : Module() {
       }
     }
 
+    /** 清掉可能残留的悬浮条（计时器被系统冻结时它会赖着不走） */
+    Function("dismissOverlay") {
+      val context = appContext.reactContext
+      if (context == null) {
+        false
+      } else {
+        QuickBarOverlay.remove(context)
+        true
+      }
+    }
+
     /** 立刻弹一条测试用的悬浮提示条（验证悬浮窗权限是否真的生效） */
     AsyncFunction("showTestOverlay") { promise: Promise ->
       val context = appContext.reactContext
