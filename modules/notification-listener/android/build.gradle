@@ -18,8 +18,3 @@ android {
     abortOnError false
   }
 }
-
-dependencies {
-  // NotificationCompat / ContextCompat / RemoteInput 都来自这里
-  implementation 'androidx.core:core-ktx:1.13.1'
-}
