@@ -53,6 +53,7 @@ class CategoryFixReceiver : BroadcastReceiver() {
         CategoryFixStore.Fix(
           id = id,
           amountFen = amountFen,
+          action = if (intent.action == ACTION_REPLY) "note" else "category",
           category = category,
           note = note.take(100),
           at = System.currentTimeMillis()

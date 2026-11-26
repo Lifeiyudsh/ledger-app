@@ -64,6 +64,23 @@ export function createTransaction(input: NewTransaction): number {
 }
 
 /**
+ * 删掉「最近一笔同金额的支出」。
+ * 悬浮条长按撤销时用：自动记账误识别（比如把到账提醒记成消费）要能当场撤回。
+ */
+export function deleteRecentByAmount(amountCents: number, sinceDate: string): number {
+  const result = getDb().runSync(
+    `DELETE FROM transactions
+      WHERE id = (
+        SELECT id FROM transactions
+         WHERE amount_cents = ? AND direction = 'expense' AND date >= ?
+         ORDER BY id DESC LIMIT 1
+      );`,
+    [amountCents, sinceDate],
+  );
+  return Number(result.changes ?? 0);
+}
+
+/**
  * 修改「最近一笔同金额的支出」的分类 / 备注。
  * 通知栏里点分类按钮或直接输入备注时，JS 之后靠这个把改动落到账上。
  */

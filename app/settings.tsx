@@ -19,6 +19,7 @@ import {
   getNotificationListener,
   requestOverlayPermission,
   showTestOverlay,
+  openAppNotificationSettings,
   isOverlayAlert,
   setOverlayAlert,
   getOverlayDebugState,
@@ -356,6 +357,16 @@ export default function SettingsScreen() {
             }}
             disabled={!hasModule}
             first
+          />
+          <Row
+            icon="options-outline"
+            title="通知设置（本应用）"
+            subtitle="关渠道、看哪些通知在响，都在这里"
+            onPress={() => {
+              const ok = openAppNotificationSettings();
+              if (!ok) Alert.alert('打不开', '请手动到「设置 → 应用 → 记账工具 → 通知」查看。');
+            }}
+            disabled={!hasModule}
           />
           <Row
             icon="notifications-outline"

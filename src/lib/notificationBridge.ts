@@ -67,6 +67,8 @@ export interface OverlayDebugState {
 export interface CategoryFix {
   id: string;
   amountFen: number;
+  /** category / note / delete */
+  action: string;
   /** 空串表示这次只改备注 */
   category: string;
   /** 空串表示这次只改分类 */
@@ -116,6 +118,7 @@ interface NotificationListenerNative {
   startKeepAlive(): boolean;
   dismissOverlay(): boolean;
   setQuickCategories(json: string): boolean;
+  openAppNotificationSettings(): boolean;
   isOverlayAlert(): boolean;
   setOverlayAlert(enabled: boolean): boolean;
   getCategoryFixes(): Promise<CategoryFix[]>;
@@ -289,6 +292,15 @@ export function setOverlayAlert(enabled: boolean): boolean {
 export function startKeepAlive(): boolean {
   try {
     return getNotificationListener()?.startKeepAlive() ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** 打开本应用的通知设置（关渠道、看哪些通知在响） */
+export function openAppNotificationSettings(): boolean {
+  try {
+    return getNotificationListener()?.openAppNotificationSettings() ?? false;
   } catch {
     return false;
   }

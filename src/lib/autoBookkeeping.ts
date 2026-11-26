@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { getCategoryLabel, type CategoryKey } from '../constants/categories';
 import { guessCategory } from './categoryGuess';
-import { createTransaction, patchRecentByAmount } from '../db/transactions';
+import { createTransaction, deleteRecentByAmount, patchRecentByAmount } from '../db/transactions';
 import { toISODate } from './date';
 import {
   clearCategoryFixes,
@@ -114,11 +114,15 @@ export async function applyCategoryFixes(): Promise<number> {
     const amount = Math.trunc(Number(fix.amountFen));
     if (!Number.isSafeInteger(amount) || amount <= 0) continue;
 
-    const patch: { category?: CategoryKey; note?: string } = {};
-    if (fix.category) patch.category = fix.category as CategoryKey;
-    if (fix.note && fix.note.trim().length > 0) patch.note = fix.note.trim();
-
     try {
+      if (fix.action === 'delete') {
+        applied += deleteRecentByAmount(amount, since);
+        continue;
+      }
+
+      const patch: { category?: CategoryKey; note?: string } = {};
+      if (fix.category) patch.category = fix.category as CategoryKey;
+      if (fix.note && fix.note.trim().length > 0) patch.note = fix.note.trim();
       applied += patchRecentByAmount(amount, patch, since);
     } catch (error) {
       console.warn('[auto-bookkeeping] 应用修正失败', error);

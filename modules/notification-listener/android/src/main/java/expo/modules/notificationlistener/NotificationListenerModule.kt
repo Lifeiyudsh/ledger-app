@@ -126,6 +126,25 @@ class NotificationListenerModule : Module() {
       }
     }
 
+    /** 打开本应用的通知设置页（关渠道、关闭静音都在这里） */
+    Function("openAppNotificationSettings") {
+      val context = appContext.reactContext
+      if (context == null) {
+        false
+      } else {
+        try {
+          val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          context.startActivity(intent)
+          true
+        } catch (t: Throwable) {
+          Log.w(TAG, "打开通知设置失败", t)
+          false
+        }
+      }
+    }
+
     /** 悬浮条上的三个快捷分类（JS 按最近消费频次算好后传进来） */
     Function("setQuickCategories") { json: String ->
       val context = appContext.reactContext

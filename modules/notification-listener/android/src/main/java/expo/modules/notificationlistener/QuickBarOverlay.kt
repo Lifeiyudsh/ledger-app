@@ -31,7 +31,6 @@ import android.widget.TextView
 internal object QuickBarOverlay {
 
   private const val TAG = "QuickBar"
-  private const val AUTO_DISMISS_MS = 6000L
 
   private val handler = Handler(Looper.getMainLooper())
 
@@ -110,12 +109,28 @@ internal object QuickBarOverlay {
           y = dp(72)
         }
 
+        card.setOnLongClickListener {
+          CategoryFixStore.add(
+            context,
+            CategoryFixStore.Fix(
+              id = captureId,
+              amountFen = amountFen,
+              action = "delete",
+              category = "",
+              note = "",
+              at = System.currentTimeMillis()
+            )
+          )
+          android.widget.Toast.makeText(context, "已撤销这笔（回到 App 可见）", android.widget.Toast.LENGTH_SHORT).show()
+          removeNow(context)
+          true
+        }
+
         windowManager.addView(card, params)
         currentView = card
         currentParams = params
         currentWindowManager = windowManager
 
-        scheduleDismiss(context)
         logShown(context, amountFen, if (a11yService != null) "无障碍层" else "普通悬浮窗")
       } catch (t: Throwable) {
         Log.w(TAG, "显示提示条失败", t)
@@ -174,6 +189,7 @@ internal object QuickBarOverlay {
             CategoryFixStore.Fix(
               id = captureId,
               amountFen = amountFen,
+              action = "category",
               category = category,
               note = "",
               at = System.currentTimeMillis()
@@ -233,13 +249,15 @@ internal object QuickBarOverlay {
             CategoryFixStore.Fix(
               id = captureId,
               amountFen = amountFen,
+              action = "note",
               category = "",
               note = text.take(100),
               at = System.currentTimeMillis()
             )
           )
         }
-        removeNow(context)
+        // 写完备注不消失：回到分类按钮，让用户接着选分类
+        backToActions(context, card, windowManager, captureId, amountFen, appName, dp)
       }
     }
     card.addView(save)
@@ -250,18 +268,7 @@ internal object QuickBarOverlay {
       setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
       setPadding(dp(6), dp(6), dp(6), dp(6))
       setOnClickListener {
-        // 回到默认形态，重新开始倒计时
-        buildActions(context, card, windowManager, captureId, amountFen, appName, dp)
-        currentParams?.let { params ->
-          params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-          try {
-            windowManager.updateViewLayout(card, params)
-          } catch (t: Throwable) {
-            Log.w(TAG, "恢复窗口属性失败", t)
-          }
-        }
-        scheduleDismiss(context)
+        backToActions(context, card, windowManager, captureId, amountFen, appName, dp)
       }
     }
     card.addView(cancel)
@@ -289,14 +296,30 @@ internal object QuickBarOverlay {
     }
   }
 
-  // ---------- 生命周期 ----------
+  /** 从备注编辑态回到分类按钮态，并恢复不可聚焦（不自动消失） */
+  private fun backToActions(
+    context: Context,
+    card: LinearLayout,
+    windowManager: WindowManager,
+    captureId: String,
+    amountFen: Long,
+    appName: String,
+    dp: (Int) -> Int
+  ) {
+    buildActions(context, card, windowManager, captureId, amountFen, appName, dp)
 
-  private fun scheduleDismiss(context: Context) {
-    hideTask?.let { handler.removeCallbacks(it) }
-    val task = Runnable { removeNow(context) }
-    hideTask = task
-    handler.postDelayed(task, AUTO_DISMISS_MS)
+    currentParams?.let { params ->
+      params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+      try {
+        windowManager.updateViewLayout(card, params)
+      } catch (t: Throwable) {
+        Log.w(TAG, "恢复窗口属性失败", t)
+      }
+    }
   }
+
+  // ---------- 生命周期 ----------
 
   fun remove(context: Context) {
     onMain { removeNow(context) }
