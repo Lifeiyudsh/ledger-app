@@ -57,6 +57,12 @@ export default function SettingsScreen() {
   const [smsGranted, setSmsGranted] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const [notifyOk, setNotifyOk] = useState(false);
+  /** 分组折叠：默认只收起「关于」，其余保持展开 */
+  const [collapsed, setCollapsed] = useState<{ data: boolean; auto: boolean; about: boolean }>({
+    data: false,
+    auto: false,
+    about: true,
+  });
   const [overlayOk, setOverlayOk] = useState(false);
   const [alertOn, setAlertOn] = useState(true);
 
@@ -205,8 +211,12 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle}>数据</Text>
-        <View style={[styles.card, cardShadow]}>
+        <SectionHeader
+          title="数据"
+          open={!collapsed.data}
+          onToggle={() => setCollapsed((prev) => ({ ...prev, data: !prev.data }))}
+        />
+        <View style={[styles.card, cardShadow, collapsed.data && styles.hidden]}>
           <Row
             icon="cloud-download-outline"
             title="账单导入"
@@ -267,8 +277,12 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>自动记账</Text>
-        <View style={[styles.card, cardShadow]}>
+        <SectionHeader
+          title="自动记账"
+          open={!collapsed.auto}
+          onToggle={() => setCollapsed((prev) => ({ ...prev, auto: !prev.auto }))}
+        />
+        <View style={[styles.card, cardShadow, collapsed.auto && styles.hidden]}>
           <Row
             icon="notifications-circle-outline"
             title="通知权限"
@@ -415,8 +429,12 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>关于</Text>
-        <View style={[styles.card, cardShadow]}>
+        <SectionHeader
+          title="关于"
+          open={!collapsed.about}
+          onToggle={() => setCollapsed((prev) => ({ ...prev, about: !prev.about }))}
+        />
+        <View style={[styles.card, cardShadow, collapsed.about && styles.hidden]}>
           <Row
             icon="information-circle-outline"
             title="版本"
@@ -441,6 +459,30 @@ interface RowProps {
   danger?: boolean;
   disabled?: boolean;
   first?: boolean;
+}
+
+function SectionHeader({
+  title,
+  open,
+  onToggle,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onToggle}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      accessibilityLabel={`${title}，${open ? '已展开' : '已收起'}`}
+      hitSlop={6}
+      style={({ pressed }) => [styles.sectionHeader, pressed && styles.sectionHeaderPressed]}
+    >
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.sub} />
+    </Pressable>
+  );
 }
 
 function Row({ icon, title, subtitle, onPress, busy, danger, disabled, first }: RowProps) {
@@ -492,13 +534,21 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
   headerRight: { width: 36 },
   content: { paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.sm },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: spacing.sm,
+    marginHorizontal: spacing.lg + 4,
+    paddingVertical: 2,
+  },
+  sectionHeaderPressed: { opacity: 0.6 },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '600',
     color: colors.sub,
-    marginTop: spacing.sm,
-    marginHorizontal: spacing.lg + 4,
   },
+  hidden: { display: 'none' },
   card: {
     marginHorizontal: spacing.lg,
     backgroundColor: colors.card,
