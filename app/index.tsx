@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -67,6 +68,17 @@ export default function ListScreen() {
     setSummary(getMonthSummary(month));
     setTidyCount(listAutoUncategorized(month).length);
   }, [month]);
+
+  // 第一次打开：先去引导页说明「三个开关 + 付款后会发生什么」
+  useEffect(() => {
+    let alive = true;
+    void AsyncStorage.getItem('ledger.onboarded.v1').then((done) => {
+      if (alive && !done) router.push('/welcome');
+    });
+    return () => {
+      alive = false;
+    };
+  }, [router]);
 
   // 自动记账补录完成后刷新列表（补录可能发生在列表挂载之前）
   useEffect(() => subscribeAutoBookkeepingDone(() => load()), [load]);

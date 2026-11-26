@@ -126,6 +126,29 @@ class NotificationListenerModule : Module() {
       }
     }
 
+    /** 悬浮条上的三个快捷分类（JS 按最近消费频次算好后传进来） */
+    Function("setQuickCategories") { json: String ->
+      val context = appContext.reactContext
+      if (context == null) {
+        false
+      } else {
+        try {
+          val array = org.json.JSONArray(json)
+          val items = (0 until array.length()).mapNotNull { index ->
+            val obj = array.optJSONObject(index) ?: return@mapNotNull null
+            val key = obj.optString("key")
+            val label = obj.optString("label")
+            if (key.isBlank() || label.isBlank()) null else QuickCategoryStore.Item(key, label)
+          }
+          QuickCategoryStore.write(context, items)
+          true
+        } catch (t: Throwable) {
+          Log.w(TAG, "设置快捷分类失败", t)
+          false
+        }
+      }
+    }
+
     /** 清掉可能残留的悬浮条（计时器被系统冻结时它会赖着不走） */
     Function("dismissOverlay") {
       val context = appContext.reactContext

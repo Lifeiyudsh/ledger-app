@@ -160,6 +160,31 @@ export function listTransactionsByMonth(
 }
 
 /**
+ * 最近 N 天里最常用的支出分类（不含「其他」）。
+ * 悬浮条上的三个快捷按钮按这个排序，比写死「餐饮/交通/购物」更贴合个人习惯。
+ */
+export function getTopExpenseCategories(
+  days = 30,
+  limit = 3,
+): Array<{ category: CategoryKey; count: number }> {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const sinceISO = since.toISOString().slice(0, 10);
+
+  const rows = getDb().getAllSync<{ category: string; total: number }>(
+    `SELECT category, COUNT(*) AS total
+       FROM transactions
+      WHERE direction = 'expense' AND category <> 'other' AND date >= ?
+      GROUP BY category
+      ORDER BY total DESC
+      LIMIT ?;`,
+    [sinceISO, limit],
+  );
+
+  return rows.map((row) => ({ category: row.category as CategoryKey, count: row.total }));
+}
+
+/**
  * 自动记账里分类仍是「其他」的记录（备注以「自动 ·」开头）。
  * 首页用它提示用户去归类 —— 这些是系统猜不出来的，只能人来定。
  */

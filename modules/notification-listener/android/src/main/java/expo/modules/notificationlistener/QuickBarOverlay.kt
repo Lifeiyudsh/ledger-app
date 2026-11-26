@@ -45,12 +45,6 @@ internal object QuickBarOverlay {
   private var currentWindowManager: WindowManager? = null
   private var hideTask: Runnable? = null
 
-  private val QUICK_CATEGORIES = listOf(
-    Triple("food", "餐饮", 1),
-    Triple("transport", "交通", 2),
-    Triple("shopping", "购物", 3)
-  )
-
   fun isPermissionGranted(context: Context): Boolean = try {
     Settings.canDrawOverlays(context)
   } catch (t: Throwable) {
@@ -166,7 +160,9 @@ internal object QuickBarOverlay {
     }
     card.addView(noteBtn)
 
-    QUICK_CATEGORIES.forEach { (category, text, _) ->
+    QuickCategoryStore.read(context).forEach { item ->
+      val category = item.key
+      val text = item.label
       val button = TextView(context).apply {
         this.text = text
         setTextColor(Color.parseColor("#2E6BE6"))

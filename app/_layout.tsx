@@ -4,7 +4,9 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initDb } from '../src/db';
-import { dismissOverlay, startKeepAlive } from '../src/lib/notificationBridge';
+import { getCategoryLabel } from '../src/constants/categories';
+import { getTopExpenseCategories } from '../src/db/transactions';
+import { dismissOverlay, setQuickCategories, startKeepAlive } from '../src/lib/notificationBridge';
 import { useAutoBookkeeping } from '../src/lib/autoBookkeeping';
 import { useNotificationCapture } from '../src/lib/notificationBridge';
 import { colors } from '../src/theme';
@@ -16,9 +18,26 @@ export default function RootLayout() {
     // 常驻前台服务：否则后台被冻结，悬浮条要等打开 App 才「补」出来
     startKeepAlive();
 
+    // 悬浮条上的三个分类按「最近 30 天最常用」排序，而不是写死
+    const syncQuickCategories = () => {
+      try {
+        const top = getTopExpenseCategories(30, 3);
+        if (top.length === 0) return;
+        setQuickCategories(
+          top.map((item) => ({ key: item.category, label: getCategoryLabel(item.category) })),
+        );
+      } catch (error) {
+        console.warn('[quick-categories] 同步失败', error);
+      }
+    };
+    syncQuickCategories();
+
     // 后台计时器可能被冻结，导致悬浮条赖着不走；回到前台就清掉残留
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') dismissOverlay();
+      if (state === 'active') {
+        dismissOverlay();
+        syncQuickCategories();
+      }
     });
     return () => sub.remove();
   }, []);
@@ -51,6 +70,8 @@ export default function RootLayout() {
         <Stack.Screen name="statistics" options={{ headerShown: false }} />
         {/* 通知原文调试页 */}
         <Stack.Screen name="notif-log" options={{ headerShown: false }} />
+        {/* 首次启动引导 */}
+        <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
         {/* 待归类（自动记账里分类落在「其他」的记录） */}
         <Stack.Screen name="tidy" options={{ headerShown: false }} />
         {/* 从「已记一笔」通知点进来的极简备注页 */}

@@ -115,6 +115,7 @@ interface NotificationListenerNative {
   showTestOverlay(): Promise<boolean>;
   startKeepAlive(): boolean;
   dismissOverlay(): boolean;
+  setQuickCategories(json: string): boolean;
   isOverlayAlert(): boolean;
   setOverlayAlert(enabled: boolean): boolean;
   getCategoryFixes(): Promise<CategoryFix[]>;
@@ -290,6 +291,15 @@ export function startKeepAlive(): boolean {
     return getNotificationListener()?.startKeepAlive() ?? false;
   } catch {
     return false;
+  }
+}
+
+/** 设置悬浮条上的三个快捷分类 */
+export function setQuickCategories(items: ReadonlyArray<{ key: string; label: string }>): void {
+  try {
+    getNotificationListener()?.setQuickCategories(JSON.stringify(items));
+  } catch {
+    // 忽略
   }
 }
 
