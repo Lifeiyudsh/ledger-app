@@ -66,6 +66,10 @@ internal object QuickBarOverlay {
       try {
         removeNow(context)
 
+        // 有读屏服务时优先用无障碍覆盖层：支付保护会拦普通悬浮窗，不拦无障碍层
+        val a11yService = AccessibilityHolder.service
+        val holderContext = a11yService ?: context
+
         val windowManager = holderContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val density = context.resources.displayMetrics.density
 
@@ -122,8 +126,6 @@ internal object QuickBarOverlay {
         }
         card.addView(close)
 
-        // 优先用无障碍覆盖层：支付保护会拦截普通悬浮窗，但没有拦无障碍层
-        val a11yService = AccessibilityHolder.service
         val windowType = if (a11yService != null) {
           WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
         } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -132,9 +134,6 @@ internal object QuickBarOverlay {
           @Suppress("DEPRECATION")
           WindowManager.LayoutParams.TYPE_PHONE
         }
-
-        // 无障碍层要用无障碍服务自己的 WindowManager
-        val holderContext = a11yService ?: context
 
         val params = WindowManager.LayoutParams(
           WindowManager.LayoutParams.WRAP_CONTENT,
