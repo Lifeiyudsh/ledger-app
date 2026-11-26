@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -31,6 +31,18 @@ import {
 } from '../src/lib/notificationBridge';
 import { colors, radius, spacing } from '../src/theme';
 
+/** 把包名翻成人话，普通用户看不懂 com.tencent.mm */
+const APP_LABELS: Record<string, string> = {
+  'com.tencent.mm': '微信',
+  'com.eg.android.AlipayGphone': '支付宝',
+  sms: '银行短信',
+  self: '系统提示',
+};
+
+function appLabel(packageName: string): string {
+  return APP_LABELS[packageName] ?? '其他应用';
+}
+
 /** 调试用：查看监听服务捕获到的最近 50 条通知原文（含未命中） */
 export default function NotificationLogScreen() {
   const router = useRouter();
@@ -43,6 +55,8 @@ export default function NotificationLogScreen() {
   const [smsOk, setSmsOk] = useState(false);
   const [debug, setDebug] = useState<OverlayDebugState | null>(null);
   const [notifyOk, setNotifyOk] = useState(false);
+  /** 展开查看原文的那一条（默认收起，只显示结论） */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [overlayOk, setOverlayOk] = useState(false);
   const [fixing, setFixing] = useState(false);
   const hasModule = getNotificationListener() !== null;
@@ -86,6 +100,35 @@ export default function NotificationLogScreen() {
       void load();
     }, [load]),
   );
+
+  /** 顶部一句话结论：用户不需要看懂技术细节，只需要知道「现在到底行不行」 */
+  const verdict = useMemo(() => {
+    if (!hasModule) {
+      return { tone: 'bad' as const, title: '当前版本不支持自动记账', hint: '需要安装 APK 版本，Expo Go 里没有这部分能力' };
+    }
+    if (!listenerOk && !a11yOk) {
+      return { tone: 'bad' as const, title: '两个采集开关都没打开', hint: '付款不会自动记账，点下面的按钮去开启' };
+    }
+    if (!listenerOk) {
+      return { tone: 'warn' as const, title: '通知使用权没开', hint: '微信/支付宝的付款通知读不到，只能靠读屏' };
+    }
+    if (!notifyOk) {
+      return { tone: 'warn' as const, title: '通知权限没开', hint: '能记账，但付款后不会弹提示' };
+    }
+
+    const lastHit = logs.find((entry) => entry.isMatch);
+    if (!lastHit) {
+      return { tone: 'warn' as const, title: '在正常工作，但还没记到过账', hint: '付一笔试试，这里会出现「已记账」' };
+    }
+
+    return {
+      tone: 'ok' as const,
+      title: '一切正常',
+      hint: `最近一次：${formatTime(lastHit.timestamp)}${
+        lastHit.amountFen !== null ? ` · ${formatYuan(lastHit.amountFen)}` : ''
+      }`,
+    };
+  }, [a11yOk, hasModule, listenerOk, logs, notifyOk]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -154,6 +197,20 @@ export default function NotificationLogScreen() {
         }
         ListHeaderComponent={
           <View style={styles.head}>
+            <View
+              style={[
+                styles.verdict,
+                verdict.tone === 'ok'
+                  ? styles.verdictOk
+                  : verdict.tone === 'warn'
+                    ? styles.verdictWarn
+                    : styles.verdictBad,
+              ]}
+            >
+              <Text style={styles.verdictTitle}>{verdict.title}</Text>
+              <Text style={styles.verdictHint}>{verdict.hint}</Text>
+            </View>
+
             <View style={styles.chips}>
               <Pressable
                 onPress={() => openNotificationListenerSettings()}
@@ -271,40 +328,54 @@ export default function NotificationLogScreen() {
             ) : null}
           </View>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => handleCopy(item)}
-            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-          >
-            <View style={styles.cardHead}>
-              <Text style={styles.time}>{formatTime(item.timestamp)}</Text>
-              <View style={[styles.badge, item.isMatch ? styles.badgeHit : styles.badgeMiss]}>
-                <Text style={[styles.badgeText, item.isMatch && styles.badgeTextHit]}>
-                  {item.isMatch ? '命中' : '未命中'}
-                </Text>
+        renderItem={({ item }) => {
+          const key = String(item.timestamp);
+          const expanded = expandedId === key;
+          return (
+            <Pressable
+              onPress={() => setExpandedId(expanded ? null : key)}
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+            >
+              <View style={styles.cardHead}>
+                <Text style={styles.time}>{formatTime(item.timestamp)}</Text>
+                <View style={[styles.badge, item.isMatch ? styles.badgeHit : styles.badgeMiss]}>
+                  <Text style={[styles.badgeText, item.isMatch && styles.badgeTextHit]}>
+                    {item.isMatch ? '已记账' : '没识别到'}
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            <Text style={styles.pkg}>{item.packageName}</Text>
+              <View style={styles.summaryRow}>
+                <Text style={styles.pkg}>{appLabel(item.packageName)}</Text>
+                {item.isMatch && item.amountFen !== null ? (
+                  <Text style={styles.amount}>{formatYuan(item.amountFen)}</Text>
+                ) : (
+                  <Text style={styles.summaryHint} numberOfLines={1}>
+                    {item.title || item.text || ''}
+                  </Text>
+                )}
+              </View>
 
-            {item.isMatch && item.amountFen !== null ? (
-              <Text style={styles.amount}>
-                {formatYuan(item.amountFen)}
-                {item.matchedKeyword ? ` · ${item.matchedKeyword}` : ''}
-              </Text>
-            ) : null}
-
-            {item.title ? <Text style={styles.field}>title：{item.title}</Text> : null}
-            {item.text ? <Text style={styles.field}>text：{item.text}</Text> : null}
-            {item.bigText ? <Text style={styles.field}>bigText：{item.bigText}</Text> : null}
-            {item.subText ? <Text style={styles.field}>subText：{item.subText}</Text> : null}
-            {item.extrasDump ? (
-              <Text style={styles.extras} numberOfLines={8}>
-                {item.extrasDump}
-              </Text>
-            ) : null}
-          </Pressable>
-        )}
+              {expanded ? (
+                <View style={styles.detail}>
+                  {item.title ? <Text style={styles.field}>标题：{item.title}</Text> : null}
+                  {item.text ? <Text style={styles.field}>正文：{item.text}</Text> : null}
+                  {item.bigText ? <Text style={styles.field}>长文本：{item.bigText}</Text> : null}
+                  {item.subText ? <Text style={styles.field}>副标题：{item.subText}</Text> : null}
+                  <Text style={styles.field}>来源：{item.packageName}</Text>
+                  {item.extrasDump ? (
+                    <Text style={styles.extras} numberOfLines={8}>
+                      {item.extrasDump}
+                    </Text>
+                  ) : null}
+                  <Pressable onPress={() => handleCopy(item)} hitSlop={8}>
+                    <Text style={styles.copyOne}>复制这条原文</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        }}
       />
     </SafeAreaView>
   );
@@ -416,6 +487,16 @@ const styles = StyleSheet.create({
   badgeMiss: { backgroundColor: colors.inputBg },
   badgeText: { fontSize: 11, fontWeight: '700', color: colors.sub },
   badgeTextHit: { color: '#ffffff' },
+  verdict: { borderRadius: radius.md, padding: spacing.md, gap: 3 },
+  verdictOk: { backgroundColor: '#E8F6EE' },
+  verdictWarn: { backgroundColor: '#FFF4E5' },
+  verdictBad: { backgroundColor: '#FDECEC' },
+  verdictTitle: { fontSize: 14, fontWeight: '700', color: colors.text },
+  verdictHint: { fontSize: 12, color: colors.sub, lineHeight: 17 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 2 },
+  summaryHint: { flex: 1, fontSize: 12, color: colors.sub },
+  detail: { marginTop: spacing.sm, gap: 3 },
+  copyOne: { fontSize: 12, color: colors.primary, fontWeight: '600', marginTop: 4 },
   pkg: { fontSize: 12, color: colors.text, fontWeight: '600' },
   amount: { fontSize: 14, fontWeight: '700', color: colors.income, marginTop: 2 },
   field: { fontSize: 12, lineHeight: 18, color: colors.text },

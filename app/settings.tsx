@@ -447,8 +447,8 @@ export default function SettingsScreen() {
           />
           <Row
             icon="list-outline"
-            title="最近通知原文"
-            subtitle="排查「为什么没识别」，可复制原文"
+            title="运行状态"
+            subtitle="看它有没有在正常工作"
             onPress={() => router.push('/notif-log')}
             disabled={!hasModule}
           />
