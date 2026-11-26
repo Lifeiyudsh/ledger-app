@@ -19,6 +19,7 @@ import {
 import {
   deleteTransaction,
   getMonthSummary,
+  listAutoUncategorized,
   listTransactionsByMonth,
   updateTransaction,
 } from '../src/db/transactions';
@@ -55,6 +56,8 @@ export default function ListScreen() {
   const [quickEdit, setQuickEdit] = useState<Transaction | null>(null);
   /** 当月预算（分），null = 未设置 */
   const [budgetCents, setBudgetCents] = useState<number | null>(null);
+  /** 本月「其他 · 自动」的笔数，用来提示用户去归类 */
+  const [tidyCount, setTidyCount] = useState(0);
   /** 通知监听捕获到的待确认账单（内存态，未落库） */
   const pendingCapture = usePendingCapture();
 
@@ -62,6 +65,7 @@ export default function ListScreen() {
     const rows = listTransactionsByMonth(month, { limit: 500 });
     setSections(buildDaySections(rows));
     setSummary(getMonthSummary(month));
+    setTidyCount(listAutoUncategorized(month).length);
   }, [month]);
 
   // 自动记账补录完成后刷新列表（补录可能发生在列表挂载之前）
@@ -248,6 +252,20 @@ export default function ListScreen() {
       {/* 预算提示：未设预算时组件自己返回 null */}
       <BudgetBanner spentCents={summary.expenseCents} budgetCents={budgetCents} />
 
+      {tidyCount > 0 ? (
+        <Pressable
+          onPress={() => router.push(`/tidy?month=${month}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`${tidyCount}笔自动记账未归类，点击整理`}
+          style={({ pressed }) => [styles.tidyBar, pressed && styles.tidyBarPressed]}
+        >
+          <Text style={styles.tidyText}>
+            {tidyCount} 笔自动记账还没归类
+          </Text>
+          <Text style={styles.tidyAction}>去归一下 ›</Text>
+        </Pressable>
+      ) : null}
+
       <TransactionGroupList
         sections={sections}
         header={<MonthSummaryCard summary={summary} />}
@@ -401,6 +419,20 @@ const styles = StyleSheet.create({
   },
   fabPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   fabIcon: { fontSize: 26, color: '#ffffff', lineHeight: 30, fontWeight: '500' },
+  tidyBar: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  tidyBarPressed: { opacity: 0.7 },
+  tidyText: { fontSize: 12, color: colors.primary, fontWeight: '500' },
+  tidyAction: { fontSize: 12, color: colors.primary, fontWeight: '700' },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   sheet: {
     backgroundColor: colors.card,

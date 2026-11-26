@@ -223,7 +223,7 @@ export default function SettingsScreen() {
           <Row
             icon="refresh-outline"
             title="重置导入记录"
-            subtitle={`已记下 ${importedCount} 条去重指纹，重置后可重新导入同一份账单`}
+            subtitle={`已记 ${importedCount} 条指纹，重置后可重导`}
             onPress={() => {
               Alert.alert(
                 '重置导入记录？',
@@ -253,7 +253,7 @@ export default function SettingsScreen() {
           <Row
             icon="copy-outline"
             title="备份到剪贴板"
-            subtitle={`当前共 ${totalCount} 笔，复制 JSON 存到微信/备忘录`}
+            subtitle={`共 ${totalCount} 笔，复制成文本保存`}
             onPress={() => void handleBackup()}
             busy={busy === 'backup'}
           />
@@ -274,8 +274,8 @@ export default function SettingsScreen() {
             title="通知权限"
             subtitle={
               notifyOk
-                ? '已允许 · 每次自动记账都会弹一条通知，可直接改分类/写备注'
-                : '未允许 · 没有它你收不到任何提示，通知会被系统丢掉'
+                ? '已允许 · 付款后会弹提示，可直接改分类'
+                : '未允许 · 收不到任何提示'
             }
             danger={!notifyOk}
             onPress={() => {
@@ -302,8 +302,8 @@ export default function SettingsScreen() {
             title="付款时顶部弹出提示"
             subtitle={
               alertOn
-                ? '已开启 · 付款后顶部浮出（支付界面被「支付保护」挡住时，退出支付页即显示）'
-                : '已关闭 · 不常驻、不弹，只会进通知栏'
+                ? '已开启 · 付款后顶部浮出一条，可点分类或写备注'
+                : '已关闭 · 只进通知栏'
             }
             onPress={() => {
               const next = !alertOn;
@@ -377,7 +377,7 @@ export default function SettingsScreen() {
           <Row
             icon="mail-unread-outline"
             title="短信自动记账"
-            subtitle={smsGranted ? '已授权 · 银行动账短信会自动识别' : '未授权 · 信用卡/储蓄卡消费靠它'}
+            subtitle={smsGranted ? '已授权 · 银行动账短信会自动识别' : '未授权 · 信用卡/储蓄卡靠它'}
             onPress={() => {
               void (async () => {
                 if (smsGranted) {

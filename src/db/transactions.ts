@@ -160,6 +160,26 @@ export function listTransactionsByMonth(
 }
 
 /**
+ * 自动记账里分类仍是「其他」的记录（备注以「自动 ·」开头）。
+ * 首页用它提示用户去归类 —— 这些是系统猜不出来的，只能人来定。
+ */
+export function listAutoUncategorized(month: string, limit = 100): Transaction[] {
+  const { start, end } = monthRange(month);
+  const rows = getDb().getAllSync<TransactionRow>(
+    `SELECT ${COLUMNS}
+       FROM transactions
+      WHERE category = 'other'
+        AND direction = 'expense'
+        AND note LIKE '自动 ·%'
+        AND date >= ? AND date < ?
+      ORDER BY date DESC, id DESC
+      LIMIT ?;`,
+    [start, end, limit],
+  );
+  return rows.map(toEntity);
+}
+
+/**
  * 按日期区间查询（闭区间，`date BETWEEN start AND end`）。
  * 报表页的周/月/年都用它，避免为每种周期各写一条 SQL。
  */
