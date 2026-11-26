@@ -464,7 +464,7 @@ class NotificationListenerModule : Module() {
       ),
       ComponentName(
         "com.hihonor.android.settings",
-        "com.hihonor.android.settings.Settings$NotificationSettingsActivity"
+        "com.hihonor.android.settings.Settings\$NotificationSettingsActivity"
       ),
       ComponentName(
         "com.huawei.android.settings",
@@ -472,7 +472,7 @@ class NotificationListenerModule : Module() {
       ),
       ComponentName(
         "com.android.settings",
-        "com.android.settings.Settings$NotificationSettingsActivity"
+        "com.android.settings.Settings\$NotificationSettingsActivity"
       ),
       ComponentName(
         "com.android.settings",
