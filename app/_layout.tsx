@@ -70,7 +70,7 @@ export default function RootLayout() {
         <Stack.Screen name="statistics" options={{ headerShown: false }} />
         {/* 通知原文调试页 */}
         <Stack.Screen name="notif-log" options={{ headerShown: false }} />
-        {/* 首次启动引导 */}
+        {/* 首次使用说明（只对空账本的新用户弹一次） */}
         <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
         {/* 待归类（自动记账里分类落在「其他」的记录） */}
         <Stack.Screen name="tidy" options={{ headerShown: false }} />

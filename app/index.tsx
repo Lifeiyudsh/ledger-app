@@ -18,6 +18,7 @@ import {
   type CategoryKey,
 } from '../src/constants/categories';
 import {
+  countAllTransactions,
   deleteTransaction,
   getMonthSummary,
   listAutoUncategorized,
@@ -69,11 +70,19 @@ export default function ListScreen() {
     setTidyCount(listAutoUncategorized(month).length);
   }, [month]);
 
-  // 第一次打开：先去引导页说明「三个开关 + 付款后会发生什么」
+  /**
+   * 引导只在「新装 + 账本为空」时出现：
+   * 老用户（已有记录）升级不会被弹，家人第一次装才看得到。
+   */
   useEffect(() => {
     let alive = true;
     void AsyncStorage.getItem('ledger.onboarded.v1').then((done) => {
-      if (alive && !done) router.push('/welcome');
+      if (!alive || done) return;
+      if (countAllTransactions() > 0) {
+        void AsyncStorage.setItem('ledger.onboarded.v1', '1');
+        return;
+      }
+      router.push('/welcome');
     });
     return () => {
       alive = false;

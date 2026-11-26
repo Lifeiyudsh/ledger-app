@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
@@ -10,40 +9,43 @@ export const ONBOARDING_KEY = 'ledger.onboarded.v1';
 
 const STEPS = [
   {
-    icon: 'notifications-outline' as const,
     title: '先开三个开关',
-    body: '设置里依次打开：通知权限、通知使用权、读屏（或短信）。少了任何一个，付款都记不上。',
+    body: '设置里依次打开：通知权限、通知使用权、读屏（或短信）。少一个，付款就记不上。',
   },
   {
-    icon: 'card-outline' as const,
     title: '付款不用管',
-    body: '付完钱会自动记一笔。顶部会冒出一条提示，点「餐饮 / 交通 / 购物」就能顺手改分类。',
+    body: '付完钱自动记一笔，屏幕顶部会冒出一条提示，点「餐饮 / 交通 / 购物」顺手改分类。',
   },
   {
-    icon: 'create-outline' as const,
     title: '想写备注就点提示条上的「备注」',
-    body: '不点也没关系，账已经记好了。事后改的话：首页顶部会有「N 笔还没归类」，点进去逐条选就行。',
+    body: '不点也没事，账已经记好了。事后要改：首页顶部会有「N 笔还没归类」，点进去逐条选。',
   },
 ];
 
-/** 首次启动的引导页（只出现一次） */
+/**
+ * 首次使用说明。
+ * 只在新装（本地还没有任何账）时出现一次，老用户升级不会被弹。
+ */
 export default function WelcomeScreen() {
   const router = useRouter();
 
-  const finish = useCallback(async () => {
-    try {
-      await AsyncStorage.setItem(ONBOARDING_KEY, '1');
-    } catch (error) {
-      console.warn('[onboarding] 保存标记失败', error);
-    }
-    router.replace('/');
-  }, [router]);
+  const finish = useCallback(
+    async (toSettings: boolean) => {
+      try {
+        await AsyncStorage.setItem(ONBOARDING_KEY, '1');
+      } catch (error) {
+        console.warn('[onboarding] 保存标记失败', error);
+      }
+      router.replace(toSettings ? '/settings' : '/');
+    },
+    [router],
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>三件事就够用了</Text>
-        <Text style={styles.subtitle}>不用学，看一遍就会</Text>
+        <Text style={styles.subtitle}>看一遍就会，不用记</Text>
 
         {STEPS.map((step, index) => (
           <View key={step.title} style={[styles.card, cardShadow]}>
@@ -58,15 +60,15 @@ export default function WelcomeScreen() {
         ))}
 
         <Pressable
-          onPress={() => void finish()}
+          onPress={() => void finish(true)}
           accessibilityRole="button"
           style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
         >
-          <Text style={styles.buttonText}>开始使用</Text>
+          <Text style={styles.buttonText}>去设置里开权限</Text>
         </Pressable>
 
-        <Pressable onPress={() => void finish()} hitSlop={8}>
-          <Text style={styles.skip}>先随便看看</Text>
+        <Pressable onPress={() => void finish(false)} hitSlop={8}>
+          <Text style={styles.skip}>已经配好了，直接用</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
