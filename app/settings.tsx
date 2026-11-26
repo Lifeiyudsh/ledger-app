@@ -24,7 +24,6 @@ import {
   setOverlayAlert,
   getOverlayDebugState,
   ensureSmsPermission,
-  hasNotificationPermission,
   hasSmsPermission,
   isAccessibilityEnabled,
   isNotificationPermissionGranted,
@@ -57,7 +56,6 @@ export default function SettingsScreen() {
   const [a11yEnabled, setA11yEnabled] = useState(false);
   const [smsGranted, setSmsGranted] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
-  const [notifyOk, setNotifyOk] = useState(false);
   /** 分组折叠：默认只收起「关于」，其余保持展开 */
   const [collapsed, setCollapsed] = useState<{ data: boolean; auto: boolean; about: boolean }>({
     data: false,
@@ -74,7 +72,6 @@ export default function SettingsScreen() {
     setA11yEnabled(isAccessibilityEnabled());
     setSmsGranted(hasSmsPermission());
     setImportedCount(countImportedBills());
-    setNotifyOk(hasNotificationPermission());
     setOverlayOk(canDrawOverlays());
     setAlertOn(isOverlayAlert());
   }, [month]);
@@ -261,34 +258,6 @@ export default function SettingsScreen() {
           onToggle={() => setCollapsed((prev) => ({ ...prev, auto: !prev.auto }))}
         />
         <View style={[styles.card, cardShadow, collapsed.auto && styles.hidden]}>
-          <Row
-            icon="notifications-circle-outline"
-            title="通知权限"
-            subtitle={
-              notifyOk
-                ? '已允许 · 付款后会弹提示，可直接改分类'
-                : '未允许 · 收不到任何提示'
-            }
-            danger={!notifyOk}
-            onPress={() => {
-              void (async () => {
-                if (Platform.OS !== 'android') return;
-                const granted = await PermissionsAndroid.request(
-                  PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-                );
-                const ok = granted === PermissionsAndroid.RESULTS.GRANTED;
-                setNotifyOk(ok);
-                if (!ok) {
-                  Alert.alert(
-                    '还是没允许',
-                    '请到「设置 → 应用 → 记账工具 → 通知」里手动打开。',
-                  );
-                }
-              })();
-            }}
-            disabled={!hasModule}
-            first
-          />
           <Row
             icon="albums-outline"
             title="付款时顶部弹出提示"

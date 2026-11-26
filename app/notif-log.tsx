@@ -4,6 +4,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
+  PermissionsAndroid,
+  Platform,
   FlatList,
   Pressable,
   RefreshControl,
@@ -22,8 +24,11 @@ import {
   isAccessibilityEnabled,
   isNotificationPermissionGranted,
   openAccessibilitySettings,
+  ensureSmsPermission,
+  openNotificationManagement,
   openNotificationListenerSettings,
   refreshListenerBinding,
+  requestOverlayPermission,
   canDrawOverlays,
   hasNotificationPermission,
   type NotificationLogEntry,
@@ -259,7 +264,11 @@ export default function NotificationLogScreen() {
                 </Pressable>
               </View>
 
-              <CheckRow label="通知使用权" ok={listenerOk} />
+              <CheckRow
+                label="通知使用权"
+                ok={listenerOk}
+                onFix={() => openNotificationListenerSettings()}
+              />
               <CheckRow label="监听服务绑定" ok={Boolean(debug?.listenerConnected)}>
                 {!debug?.listenerConnected ? (
                   <Pressable onPress={() => void handleFixBinding()} hitSlop={8} disabled={fixing}>
@@ -267,10 +276,45 @@ export default function NotificationLogScreen() {
                   </Pressable>
                 ) : null}
               </CheckRow>
-              <CheckRow label="读屏（无障碍）" ok={a11yOk} />
-              <CheckRow label="短信" ok={smsOk} />
-              <CheckRow label="通知权限（弹提示用）" ok={notifyOk} />
-              <CheckRow label="悬浮提示条" ok={overlayOk} />
+              <CheckRow
+                label="读屏（无障碍）"
+                ok={a11yOk}
+                onFix={() => openAccessibilitySettings()}
+              />
+              <CheckRow
+                label="短信"
+                ok={smsOk}
+                onFix={() => {
+                  void ensureSmsPermission().then((granted) => {
+                    setSmsOk(granted);
+                    if (!granted) {
+                      Alert.alert('短信权限被拒绝', '可以到「设置 → 应用 → 记账工具 → 权限」里手动打开。');
+                    }
+                  });
+                }}
+              />
+              <CheckRow
+                label="通知权限（弹提示用）"
+                ok={notifyOk}
+                onFix={() => {
+                  void (async () => {
+                    const granted = await PermissionsAndroid.request(
+                      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+                    );
+                    const ok = granted === PermissionsAndroid.RESULTS.GRANTED;
+                    setNotifyOk(ok);
+                    if (!ok) openNotificationManagement();
+                  })();
+                }}
+              />
+              <CheckRow
+                label="悬浮提示条"
+                ok={overlayOk}
+                onFix={() => {
+                  requestOverlayPermission();
+                  Alert.alert('授权后回来', '在系统页面里打开「允许显示在其他应用上层」，再回到本页状态会自动刷新。');
+                }}
+              />
 
               {!debug?.listenerConnected ? (
                 <Text style={styles.checkHint}>
@@ -384,23 +428,42 @@ export default function NotificationLogScreen() {
 function CheckRow({
   label,
   ok,
+  onFix,
   children,
 }: {
   label: string;
   ok: boolean;
+  /** 未就绪时点这一行去哪解决 */
+  onFix?: () => void;
   children?: React.ReactNode;
 }) {
-  return (
-    <View style={styles.checkRow}>
+  const body = (
+    <>
       <Text style={styles.checkLabel}>{label}</Text>
       <View style={styles.checkRight}>
         <Text style={[styles.checkValue, ok ? styles.ok : styles.bad]}>
           {ok ? '正常' : '未就绪'}
         </Text>
         {children}
+        {!ok && onFix ? <Text style={styles.fixLink}>去开启 ›</Text> : null}
       </View>
-    </View>
+    </>
   );
+
+  if (!ok && onFix) {
+    return (
+      <Pressable
+        onPress={onFix}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}未就绪，点击去开启`}
+        style={({ pressed }) => [styles.checkRow, pressed && styles.checkRowPressed]}
+      >
+        {body}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.checkRow}>{body}</View>;
 }
 
 function formatTime(timestamp: number): string {
@@ -453,6 +516,7 @@ const styles = StyleSheet.create({
   ok: { color: colors.income },
   bad: { color: colors.expense },
   lastDecision: { fontSize: 11, color: colors.sub, marginTop: 2, lineHeight: 16 },
+  checkRowPressed: { opacity: 0.6 },
   checkRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   fixLink: { fontSize: 12, fontWeight: '700', color: colors.primary },
   checkHint: {
